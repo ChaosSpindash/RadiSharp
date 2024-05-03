@@ -1,0 +1,10 @@
+# Config file for RadiSharp
+
+# Bot Token
+token: MTE1MTg2NjcyMjM5NjE2MDA5MA.GdDazF.TdT1dDwVrBN723PmKlMW1p_64zPZVwWwihGR3k
+# Bot Status
+# - Activity Type: 0 = Playing, 1 = Streaming, 2 = Listening To, 3 = Watching, 4 = Custom, 5 = Competing
+# - Status: 0 = Offline, 1 = Online, 2 = Idle, 4 = Do Not Disturb, 5 = Invisible, 6 = Streaming
+activityType: 2
+activityName: "Dustbowle Radio"
+status: 1
