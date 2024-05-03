@@ -364,3 +364,4 @@ FodyWeavers.xsd
 
 # config.yaml containing sensitive information
 config.yaml
+/config.yaml
