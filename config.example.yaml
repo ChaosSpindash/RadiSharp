@@ -9,3 +9,11 @@ token: "your token here"
 activityType: 2
 activityName: "Dustbowle Radio"
 status: 1
+
+# Guild ID (for testing)
+guildID: 000000000000000000
+
+# Lavalink Server
+lavalinkHost: "localhost"
+lavalinkPort: 2333
+lavalinkPass: "youshallnotpass"
