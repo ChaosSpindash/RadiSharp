@@ -363,4 +363,16 @@ MigrationBackup/
 FodyWeavers.xsd
 
 # config.yaml containing sensitive information
-/config.yaml
+config.yaml
+
+# Log folder
+logs/
+
+# Lavalink Binary & Config
+Lavalink/Lavalink.jar
+Lavalink/application.yml
+Lavalink/plugins/
+Lavalink/logs/
+
+# VS Code folders
+.vscode/
