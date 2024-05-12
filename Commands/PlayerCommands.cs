@@ -16,11 +16,12 @@ namespace RadiSharp.Commands
     public class PlayerCommands : ApplicationCommandsModule
     {
 
-        QueueManager queueManager = new QueueManager();
+        QueueManager queueManager = QueueManager.Instance;
 
         [SlashCommand("stop", "Stop playback, clear queue and leave the voice channel.")]
         public async Task LeaveAsync(InteractionContext ctx)
         {
+            
             await ctx.CreateResponseAsync(InteractionResponseType.DeferredChannelMessageWithSource);
             var lavalink = ctx.Client.GetLavalink();
             var guildPlayer = lavalink.GetGuildPlayer(ctx.Guild!);
@@ -33,6 +34,7 @@ namespace RadiSharp.Commands
                 return;
             }
 
+            queueManager.Clear();
             await guildPlayer.DisconnectAsync();
             await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
                 .WithTitle("👋 Bye bye!")
@@ -40,7 +42,7 @@ namespace RadiSharp.Commands
                 .WithColor(DiscordColor.Green)));
             await Task.Delay(10000);
             await ctx.DeleteResponseAsync();
-            queueManager.Clear(true);
+
         }
 
         [SlashCommand("play", "Play a track from an URL or search query.")]
@@ -76,7 +78,8 @@ namespace RadiSharp.Commands
 
                 guildPlayer!.TrackStarted += async (s, e) =>
                 {
-                    await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
+                    await new DiscordMessageBuilder()
+                    .AddEmbed(new DiscordEmbedBuilder()
                         .WithTitle("▶️ Now Playing")
                         .WithDescription($"[{e.Track.Info.Title}]({e.Track.Info.Uri})")
                         .WithThumbnail($"https://img.youtube.com/vi/{e.Track.Info.Identifier}/maxresdefault.jpg")
@@ -93,34 +96,148 @@ namespace RadiSharp.Commands
                             new DiscordButtonComponent(ButtonStyle.Primary, "player_pause", "", false, new DiscordComponentEmoji("⏸️")),
                             new DiscordButtonComponent(ButtonStyle.Primary, "player_skip", "", false, new DiscordComponentEmoji("⏭️")),
                             new DiscordButtonComponent(ButtonStyle.Primary, "player_stop", "", false, new DiscordComponentEmoji("⏹️")),
-                            new DiscordButtonComponent(ButtonStyle.Secondary, "player_repeat", "", false, new DiscordComponentEmoji("🔂"))
+                            new DiscordButtonComponent(queueManager.Repeat ? ButtonStyle.Success : ButtonStyle.Secondary, "player_repeat", "", false, new DiscordComponentEmoji("🔂"))
+                        }).SendAsync(ctx.Channel);
+                };
+
+                ctx.Client.ComponentInteractionCreated += async (s, e) =>
+                {
+                    switch (e.Id)
+                    {
+
+                        case "player_previous":
+                            await e.Interaction.CreateResponseAsync(InteractionResponseType.DeferredMessageUpdate);
+                            await guildPlayer.PlayAsync(queueManager.Previous()!.Track);
+                            break;
+                        case "player_skip":
+                            await e.Interaction.CreateResponseAsync(InteractionResponseType.DeferredMessageUpdate);
+                            await guildPlayer.PlayAsync(queueManager.Next(true)!.Track);
+                            break;
+                        case "player_pause":
+                            await guildPlayer.PauseAsync();
+                            await e.Interaction.CreateResponseAsync(InteractionResponseType.UpdateMessage, new DiscordInteractionResponseBuilder().AddEmbed(new DiscordEmbedBuilder()
+                                .WithTitle("▶️ Now Playing")
+                                .WithDescription($"[{queueManager.CurrentTrack()!.Track.Info.Title}]({queueManager.CurrentTrack()!.Track.Info.Uri})")
+                                .WithThumbnail($"https://img.youtube.com/vi/{queueManager.CurrentTrack()!.Track.Info.Identifier}/maxresdefault.jpg")
+                                .WithColor(DiscordColor.Yellow)
+                                .AddFields(
+                            [
+                                new DiscordEmbedField("Requested by", queueManager.CurrentTrack()!.RequestedBy.Mention ?? "Unknown", true),
+                                new DiscordEmbedField("Duration", queueManager.CurrentTrack()!.Track.Info.IsStream ? "`🔴 LIVE`" : $"`{queueManager.CurrentTrack()!.Track.Info.Length}`", true)
+                            ]
+                            ))
+                            .AddComponents(new DiscordComponent[]
+                        {
+                            new DiscordButtonComponent(ButtonStyle.Primary, "player_previous", "", false, new DiscordComponentEmoji("⏮️")),
+                            new DiscordButtonComponent(ButtonStyle.Success, "player_play", "", false, new DiscordComponentEmoji("▶️")),
+                            new DiscordButtonComponent(ButtonStyle.Primary, "player_skip", "", false, new DiscordComponentEmoji("⏭️")),
+                            new DiscordButtonComponent(ButtonStyle.Primary, "player_stop", "", false, new DiscordComponentEmoji("⏹️")),
+                            new DiscordButtonComponent(queueManager.Repeat ? ButtonStyle.Success : ButtonStyle.Secondary, "player_repeat", "", false, new DiscordComponentEmoji("🔂"))
                         })
-                );
+                            );
+                            break;
+                        case "player_play":
+                            await guildPlayer.ResumeAsync();
+                            await e.Interaction.CreateResponseAsync(InteractionResponseType.UpdateMessage, new DiscordInteractionResponseBuilder().AddEmbed(new DiscordEmbedBuilder()
+                                .WithTitle("▶️ Now Playing")
+                                .WithDescription($"[{queueManager.CurrentTrack()!.Track.Info.Title}]({queueManager.CurrentTrack()!.Track.Info.Uri})")
+                                .WithThumbnail($"https://img.youtube.com/vi/{queueManager.CurrentTrack()!.Track.Info.Identifier}/maxresdefault.jpg")
+                                .WithColor(DiscordColor.Green)
+                                .AddFields(
+                            [
+                                new DiscordEmbedField("Requested by", queueManager.CurrentTrack()!.RequestedBy.Mention ?? "Unknown", true),
+                                new DiscordEmbedField("Duration", queueManager.CurrentTrack()!.Track.Info.IsStream ? "`🔴 LIVE`" : $"`{queueManager.CurrentTrack()!.Track.Info.Length}`", true)
+                            ]
+                            ))
+                            .AddComponents(new DiscordComponent[]
+                        {
+                            new DiscordButtonComponent(ButtonStyle.Primary, "player_previous", "", false, new DiscordComponentEmoji("⏮️")),
+                            new DiscordButtonComponent(ButtonStyle.Primary, "player_pause", "", false, new DiscordComponentEmoji("⏸️")),
+                            new DiscordButtonComponent(ButtonStyle.Primary, "player_skip", "", false, new DiscordComponentEmoji("⏭️")),
+                            new DiscordButtonComponent(ButtonStyle.Primary, "player_stop", "", false, new DiscordComponentEmoji("⏹️")),
+                            new DiscordButtonComponent(queueManager.Repeat ? ButtonStyle.Success : ButtonStyle.Secondary, "player_repeat", "", false, new DiscordComponentEmoji("🔂"))
+                        })
+                            );
+                            break;
+                        case "player_stop":
+                            await e.Interaction.CreateResponseAsync(InteractionResponseType.DeferredMessageUpdate);
+                            queueManager.Clear();
+                            await guildPlayer.DisconnectAsync();
+                            var msg = await new DiscordMessageBuilder().AddEmbed(new DiscordEmbedBuilder()
+                                .WithTitle("👋 Bye bye!")
+                                .WithDescription("Disconnected from the voice channel.")
+                                .WithColor(DiscordColor.Green))
+                                .SendAsync(ctx.Channel);
+                            await Task.Delay(10000);
+                            await msg.DeleteAsync();
+                            break;
+                        case "player_repeat":
+                            queueManager.ToggleRepeat();
+                            await e.Interaction.CreateResponseAsync(InteractionResponseType.UpdateMessage, new DiscordInteractionResponseBuilder().AddEmbed(new DiscordEmbedBuilder()
+                                .WithTitle("▶️ Now Playing")
+                                .WithDescription($"[{queueManager.CurrentTrack()!.Track.Info.Title}]({queueManager.CurrentTrack()!.Track.Info.Uri})")
+                                .WithThumbnail($"https://img.youtube.com/vi/{queueManager.CurrentTrack()!.Track.Info.Identifier}/maxresdefault.jpg")
+                                .WithColor(DiscordColor.Green)
+                                .AddFields(
+                            [
+                                new DiscordEmbedField("Requested by", queueManager.CurrentTrack()!.RequestedBy.Mention ?? "Unknown", true),
+                                new DiscordEmbedField("Duration", queueManager.CurrentTrack()!.Track.Info.IsStream ? "`🔴 LIVE`" : $"`{queueManager.CurrentTrack()!.Track.Info.Length}`", true)
+                            ]
+                            ))
+                            .AddComponents(new DiscordComponent[]
+                        {
+                            new DiscordButtonComponent(ButtonStyle.Primary, "player_previous", "", false, new DiscordComponentEmoji("⏮️")),
+                            new DiscordButtonComponent(ButtonStyle.Primary, "player_pause", "", false, new DiscordComponentEmoji("⏸️")),
+                            new DiscordButtonComponent(ButtonStyle.Primary, "player_skip", "", false, new DiscordComponentEmoji("⏭️")),
+                            new DiscordButtonComponent(ButtonStyle.Primary, "player_stop", "", false, new DiscordComponentEmoji("⏹️")),
+                            new DiscordButtonComponent(queueManager.Repeat ? ButtonStyle.Success : ButtonStyle.Secondary, "player_repeat", "", false, new DiscordComponentEmoji("🔂"))
+                        })
+                            );
+                            break;
+                    }
                 };
 
                 guildPlayer.TrackEnded += async (s, e) =>
                 {
-                    RadiTrack? nextTrack = queueManager.Next();
-
-                    if (nextTrack is null)
+                    switch (e.Reason)
                     {
-                        if (!queueManager.ManualClear)
-                        {
-                            await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
-                                .WithTitle("🏁 End of Queue")
-                                .WithDescription("No more tracks to play.")
-                                .WithColor(DiscordColor.Green)));
-                            await Task.Delay(10000);
-                            await ctx.DeleteResponseAsync();
-                        }
-                        return;
+                        case LavalinkTrackEndReason.Stopped:
+                        case LavalinkTrackEndReason.Replaced:
+                        case LavalinkTrackEndReason.Cleanup:
+                            break;
+                    
+                        case LavalinkTrackEndReason.LoadFailed:
+                            await new DiscordMessageBuilder().AddEmbed(new DiscordEmbedBuilder()
+                                .WithTitle("❌ Error")
+                                .WithDescription("Failed to load the next track.")
+                                .WithColor(DiscordColor.Red))
+                                .SendAsync(ctx.Channel);
+                            await guildPlayer.PlayAsync(queueManager.Next()!.Track);
+                            break;
+                    
+                        case LavalinkTrackEndReason.Finished:
+                            RadiTrack? nextTrack = queueManager.Next();
+                            if (nextTrack is null)
+                            {
+                                var msg = await new DiscordMessageBuilder().AddEmbed(new DiscordEmbedBuilder()
+                                    .WithTitle("🏁 End of Queue")
+                                    .WithDescription("No more tracks to play.")
+                                    .WithColor(DiscordColor.Green))
+                                    .SendAsync(ctx.Channel);
+                                await Task.Delay(10000);
+                                await msg.DeleteAsync();
+                                break;
+                            }
+                            else
+                            {
+                                await guildPlayer.PlayAsync(nextTrack.Track);
+                            }
+                            break;
                     }
-
-                    await guildPlayer.PlayAsync(nextTrack.Track);
                 };
             }
 
-            var loadResult = await guildPlayer.LoadTracksAsync(LavalinkSearchType.Youtube, query);
+            var loadResult = await guildPlayer.LoadTracksAsync(query);
 
             if (loadResult.LoadType == LavalinkLoadResultType.Empty || loadResult.LoadType == LavalinkLoadResultType.Error)
             {
@@ -132,7 +249,7 @@ namespace RadiSharp.Commands
             }
 
             if (loadResult.LoadType == LavalinkLoadResultType.Playlist)
-            { 
+            {
                 LavalinkPlaylist playlist = loadResult.GetResultAs<LavalinkPlaylist>();
 
                 queueManager.AddPlaylist(new RadiPlaylist(playlist, ctx.Member));
@@ -171,10 +288,10 @@ namespace RadiSharp.Commands
                     ])));
             }
 
-            
 
-                await guildPlayer.PlayAsync(queueManager.Next()!.Track);
-            
+
+            await guildPlayer.PlayAsync(queueManager.Next()!.Track);
+
         }
 
         [SlashCommand("pause", "Pause the current track.")]
@@ -297,9 +414,10 @@ namespace RadiSharp.Commands
                     .WithColor(DiscordColor.Red)));
                 return;
             }
+            var desc = queueManager.GetPlaylist();
             await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
                 .WithTitle("📜 Queue")
-                .WithDescription(queueManager.GetPlaylist())
+                .WithDescription(desc)
                 .WithColor(DiscordColor.Green)
                 .AddFields(
                 [
@@ -310,13 +428,121 @@ namespace RadiSharp.Commands
                 .WithFooter($"Page {queueManager.PageCurrent}/{queueManager.PageCount}"))
                 .AddComponents(new DiscordComponent[]
                 {
-                    new DiscordButtonComponent(ButtonStyle.Primary, "queue_previous", "", false, new DiscordComponentEmoji("⏮️")),  
-                    new DiscordButtonComponent(ButtonStyle.Primary, "queue_next", "", false, new DiscordComponentEmoji("⏭️")),
-                    new DiscordButtonComponent(ButtonStyle.Secondary, "queue_loop", "", false, new DiscordComponentEmoji("🔁")),
-                    new DiscordButtonComponent(ButtonStyle.Secondary, "queue_shuffle", "", false, new DiscordComponentEmoji("🔀")),
+                    new DiscordButtonComponent(ButtonStyle.Primary, "queue_previous_page", "", false, new DiscordComponentEmoji("⏮️")),
+                    new DiscordButtonComponent(ButtonStyle.Primary, "queue_next_page", "", false, new DiscordComponentEmoji("⏭️")),
+                    new DiscordButtonComponent(queueManager.LoopQueue ? ButtonStyle.Success : ButtonStyle.Secondary, "queue_loop", "", false, new DiscordComponentEmoji("🔁")),
+                    new DiscordButtonComponent(queueManager.Shuffle ? ButtonStyle.Success : ButtonStyle.Secondary, "queue_shuffle", "", false, new DiscordComponentEmoji("🔀")),
                     new DiscordButtonComponent(ButtonStyle.Danger, "queue_clear", "", false, new DiscordComponentEmoji("🗑️"))
                 })
                 );
+
+            ctx.Client.ComponentInteractionCreated += async (s, e) =>
+            {
+                switch (e.Id)
+                {
+                    case "queue_clear":
+                        await e.Interaction.CreateResponseAsync(InteractionResponseType.DeferredMessageUpdate);
+                        queueManager.Clear();
+                        await guildPlayer.StopAsync();
+                        await e.Interaction.EditOriginalResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
+                            .WithTitle("🗑️ Cleared Queue")
+                            .WithDescription("The queue has been cleared.")
+                            .WithColor(DiscordColor.Green)));
+                        await Task.Delay(10000);
+                        await e.Interaction.DeleteOriginalResponseAsync();
+                        break;
+                    case "queue_loop":
+                        queueManager.ToggleLoopQueue();
+                        var descLoop = queueManager.GetPlaylist(queueManager.PageCurrent);
+                        await e.Interaction.CreateResponseAsync(InteractionResponseType.UpdateMessage, new DiscordInteractionResponseBuilder().AddEmbed(new DiscordEmbedBuilder()
+                            .WithTitle("📜 Queue")
+                            .WithDescription(descLoop)
+                            .WithColor(DiscordColor.Green)
+                            .AddFields(
+                            [
+                                new DiscordEmbedField("Total Tracks", $"`{queueManager.PlaylistCount()}`", true),
+                                new DiscordEmbedField("Current Track Position", $"`{queueManager.CurrentTrack()!.Track.Info.Position} / {queueManager.CurrentTrack()!.Track.Info.Length}", true),
+                                new DiscordEmbedField("Total Duration", $"`{queueManager.CurrentTrack()!.Track.Info.Length}`", true)
+                            ])
+                            .WithFooter($"Page {queueManager.PageCurrent}/{queueManager.PageCount}"))
+                            .AddComponents(new DiscordComponent[]
+                            {
+                                new DiscordButtonComponent(ButtonStyle.Primary, "queue_previous_page", "", false, new DiscordComponentEmoji("⏮️")),
+                                new DiscordButtonComponent(ButtonStyle.Primary, "queue_next_page", "", false, new DiscordComponentEmoji("⏭️")),
+                                new DiscordButtonComponent(queueManager.LoopQueue ? ButtonStyle.Success : ButtonStyle.Secondary, "queue_loop", "", false, new DiscordComponentEmoji("🔁")),
+                                new DiscordButtonComponent(queueManager.Shuffle ? ButtonStyle.Success : ButtonStyle.Secondary, "queue_shuffle", "", false, new DiscordComponentEmoji("🔀")),
+                                new DiscordButtonComponent(ButtonStyle.Danger, "queue_clear", "", false, new DiscordComponentEmoji("🗑️"))
+                            }));
+                        break;
+                    case "queue_shuffle":
+                        queueManager.ToggleShuffle();
+                        var descShuffle = queueManager.GetPlaylist(queueManager.PageCurrent);
+                        await e.Interaction.CreateResponseAsync(InteractionResponseType.UpdateMessage, new DiscordInteractionResponseBuilder().AddEmbed(new DiscordEmbedBuilder()
+                            .WithTitle("📜 Queue")
+                            .WithDescription(descShuffle)
+                            .WithColor(DiscordColor.Green)
+                            .AddFields(
+                            [
+                                new DiscordEmbedField("Total Tracks", $"`{queueManager.PlaylistCount()}`", true),
+                                new DiscordEmbedField("Current Track Position", $"`{queueManager.CurrentTrack()!.Track.Info.Position} / {queueManager.CurrentTrack()!.Track.Info.Length}", true),
+                                new DiscordEmbedField("Total Duration", $"`{queueManager.CurrentTrack()!.Track.Info.Length}`", true)
+                            ])
+                            .WithFooter($"Page {queueManager.PageCurrent}/{queueManager.PageCount}"))
+                            .AddComponents(new DiscordComponent[]
+                            {
+                                new DiscordButtonComponent(ButtonStyle.Primary, "queue_previous_page", "", false, new DiscordComponentEmoji("⏮️")),
+                                new DiscordButtonComponent(ButtonStyle.Primary, "queue_next_page", "", false, new DiscordComponentEmoji("⏭️")),
+                                new DiscordButtonComponent(queueManager.LoopQueue ? ButtonStyle.Success : ButtonStyle.Secondary, "queue_loop", "", false, new DiscordComponentEmoji("🔁")),
+                                new DiscordButtonComponent(queueManager.Shuffle ? ButtonStyle.Success : ButtonStyle.Secondary, "queue_shuffle", "", false, new DiscordComponentEmoji("🔀")),
+                                new DiscordButtonComponent(ButtonStyle.Danger, "queue_clear", "", false, new DiscordComponentEmoji("🗑️"))
+                            }));
+                        break;
+                    case "queue_previous_page":
+                        var descPrev = queueManager.GetPlaylist(queueManager.PageCurrent - 1);
+                        await e.Interaction.CreateResponseAsync(InteractionResponseType.UpdateMessage, new DiscordInteractionResponseBuilder().AddEmbed(new DiscordEmbedBuilder()
+                            .WithTitle("📜 Queue")
+                            .WithDescription(descPrev)
+                            .WithColor(DiscordColor.Green)
+                            .AddFields(
+                            [
+                                new DiscordEmbedField("Total Tracks", $"`{queueManager.PlaylistCount()}`", true),
+                                new DiscordEmbedField("Current Track Position", $"`{queueManager.CurrentTrack()!.Track.Info.Position} / {queueManager.CurrentTrack()!.Track.Info.Length}", true),
+                                new DiscordEmbedField("Total Duration", $"`{queueManager.CurrentTrack()!.Track.Info.Length}`", true)
+                            ])
+                            .WithFooter($"Page {queueManager.PageCurrent}/{queueManager.PageCount}"))
+                            .AddComponents(new DiscordComponent[]
+                            {
+                                new DiscordButtonComponent(ButtonStyle.Primary, "queue_previous_page", "", false, new DiscordComponentEmoji("⏮️")),
+                                new DiscordButtonComponent(ButtonStyle.Primary, "queue_next_page", "", false, new DiscordComponentEmoji("⏭️")),
+                                new DiscordButtonComponent(ButtonStyle.Secondary, "queue_loop", "", false, new DiscordComponentEmoji("🔁")),
+                                new DiscordButtonComponent(ButtonStyle.Secondary, "queue_shuffle", "", false, new DiscordComponentEmoji("🔀")),
+                                new DiscordButtonComponent(ButtonStyle.Danger, "queue_clear", "", false, new DiscordComponentEmoji("🗑️"))
+                            }));
+                        break;
+                    case "queue_next_page":
+                        var descNext = queueManager.GetPlaylist(queueManager.PageCurrent + 1);
+                        await e.Interaction.CreateResponseAsync(InteractionResponseType.UpdateMessage, new DiscordInteractionResponseBuilder().AddEmbed(new DiscordEmbedBuilder()
+                            .WithTitle("📜 Queue")
+                            .WithDescription(descNext)
+                            .WithColor(DiscordColor.Green)
+                            .AddFields(
+                            [
+                                new DiscordEmbedField("Total Tracks", $"`{queueManager.PlaylistCount()}`", true),
+                                new DiscordEmbedField("Current Track Position", $"`{queueManager.CurrentTrack()!.Track.Info.Position} / {queueManager.CurrentTrack()!.Track.Info.Length}", true),
+                                new DiscordEmbedField("Total Duration", $"`{queueManager.CurrentTrack()!.Track.Info.Length}`", true)
+                            ])
+                            .WithFooter($"Page {queueManager.PageCurrent}/{queueManager.PageCount}"))
+                            .AddComponents(new DiscordComponent[]
+                            {
+                                new DiscordButtonComponent(ButtonStyle.Primary, "queue_previous_page", "", false, new DiscordComponentEmoji("⏮️")),
+                                new DiscordButtonComponent(ButtonStyle.Primary, "queue_next_page", "", false, new DiscordComponentEmoji("⏭️")),
+                                new DiscordButtonComponent(ButtonStyle.Secondary, "queue_loop", "", false, new DiscordComponentEmoji("🔁")),
+                                new DiscordButtonComponent(ButtonStyle.Secondary, "queue_shuffle", "", false, new DiscordComponentEmoji("🔀")),
+                                new DiscordButtonComponent(ButtonStyle.Danger, "queue_clear", "", false, new DiscordComponentEmoji("🗑️"))
+                            }));
+                        break;
+                }
+            };
         }
 
         [SlashCommand("skip", "Skip the current track.")]
@@ -353,7 +579,7 @@ namespace RadiSharp.Commands
                                                                              .WithColor(DiscordColor.Red)));
                 return;
             }
-            
+
             await guildPlayer.PlayAsync(queueManager.Next(true)!.Track);
             await ctx.DeleteResponseAsync();
         }
@@ -392,7 +618,7 @@ namespace RadiSharp.Commands
                 return;
             }
 
-            queueManager.Clear(true);
+            queueManager.Clear();
             await guildPlayer.StopAsync();
             await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
                                .WithTitle("🗑️ Cleared Queue")

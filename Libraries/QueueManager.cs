@@ -1,25 +1,24 @@
-﻿using DisCatSharp.Lavalink.Entities;
-using Microsoft.VisualBasic;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Text;
 
 namespace RadiSharp.Libraries
 {
     public class QueueManager
     {
-        
+        private static readonly QueueManager _instance = new QueueManager();
+        public static QueueManager Instance
+        {
+            get
+            {
+                return _instance;
+            }
+        }
+
         private List<RadiTrack> _playlist = [];
         private List<RadiTrack> _shuffledPlaylist = [];
         private int _playlistIndex = -1;
         public bool LoopQueue { get; private set; } = false;
         public bool Shuffle { get; private set; } = false;
         public bool Repeat { get; private set; } = false;
-
-        // Returns whether the queue was manually cleared
-        public bool ManualClear { get; private set; } = false;
 
         public int PageCurrent { get; private set; } = 0;
         public int PageCount { get; private set; } = 0;
@@ -71,7 +70,7 @@ namespace RadiSharp.Libraries
                 Next(true);
             }
         }
-        public void Clear(bool manual = false)
+        public void Clear()
         {
             // Clear the playlist (including shuffle playlist) and reset the index
             _playlistIndex = -1;
@@ -81,7 +80,6 @@ namespace RadiSharp.Libraries
             LoopQueue = false;
             Shuffle = false;
             Repeat = false;
-            ManualClear = manual;
         }
         public RadiTrack? Next(bool skip = false)
         {
@@ -133,6 +131,43 @@ namespace RadiSharp.Libraries
             return playlist[_playlistIndex];
         }
 
+        public void Move(int from, int to)
+        {
+            List<RadiTrack> playlist;
+            // First check if the shuffle setting is enabled
+            playlist = Shuffle ? _shuffledPlaylist : _playlist;
+
+            // Check if the indices are out of bounds
+            if (from < 1 || from > playlist.Count || to < 1 || to > playlist.Count)
+            {
+                return;
+            }
+
+            // Then move the track in the current playlist
+            playlist.Insert(to - 1, playlist[from - 1]);
+            if (from < to)
+            {
+                playlist.RemoveAt(from - 1);
+            }
+            else
+            {
+                playlist.RemoveAt(from);
+            }
+            // Update the playlist index if necessary
+            if (_playlistIndex == from - 1)
+            {
+                _playlistIndex = to - 1;
+            }
+            else if (_playlistIndex == to - 1 && from < to)
+            {
+                _playlistIndex--;
+            }
+            else if (_playlistIndex == to && from > to)
+            {
+                _playlistIndex++;
+            }
+        }
+
         public RadiTrack? Previous()
         {
             // Determine which playlist to use based on the shuffle setting
@@ -159,8 +194,13 @@ namespace RadiSharp.Libraries
             Shuffle = !Shuffle;
             if (Shuffle)
             {
-                _playlistIndex = -1;
-                _shuffledPlaylist = _playlist.OrderBy(x => Guid.NewGuid()).ToList();
+                // Place the current track at the beginning of the shuffled playlist and shuffle the rest
+                RadiTrack currentTrack = _playlist[_playlistIndex];
+                _shuffledPlaylist = _playlist.ToList();
+                _shuffledPlaylist.RemoveAt(_playlistIndex);
+                _shuffledPlaylist = _shuffledPlaylist.OrderBy(x => Guid.NewGuid()).ToList();
+                _shuffledPlaylist.Insert(0, currentTrack);
+                _playlistIndex = 0;
             }
             else
             {
@@ -185,50 +225,44 @@ namespace RadiSharp.Libraries
 
         public int PlaylistCount() => _playlist.Count;
 
-        // Method to return the current playlist in pages of 10
+        // Method to return the queue in a paginated format (10 tracks per page)
         // Includes the track duration and the user who requested the track
-        // If page contains current track, mark line as bold
+        // Mark the current track as bold
         public string GetPlaylist(int page = 0)
         {
             // Determine which playlist to use based on the shuffle setting
             List<RadiTrack> playlist = Shuffle ? _shuffledPlaylist : _playlist;
             // Calculate the total number of pages
-            int totalPages = (int)Math.Ceiling((double)playlist.Count / 10);
-            PageCount = totalPages;
-            // If the page number is out of bounds, clamp to the nearest valid page
-            if (page < 0)
+            PageCount = (int)Math.Ceiling((double)playlist.Count / 10);
+            // Check if the page is out of bounds
+            if (page < 0 || page >= PageCount)
             {
-                page = 1;
+                return "Invalid page number.";
             }
-            else if (page > totalPages)
-            {
-                page = totalPages;
-            }
-            // If page number is 0, return page with current track
+            // If page is 0, set it to the page containing the current track
             if (page == 0)
             {
                 page = (int)Math.Ceiling((double)(_playlistIndex + 1) / 10);
             }
-            // Calculate the starting index and ending index of the current page
+            // Set the current page
             PageCurrent = page;
-            int start = (page - 1) * 10;
-            int end = Math.Min(start + 10, playlist.Count);
             // Initialize the StringBuilder
             StringBuilder sb = new();
-            // Loop through the tracks in the current page
-            for (int i = start; i < end; i++)
+            // Loop through the tracks in the playlist and add them to the StringBuilder
+            for (int i = (page - 1) * 10; i < page * 10 && i < playlist.Count; i++)
             {
-                // If the track is the current track, mark the line as bold
+                RadiTrack track = playlist[i];
+                // Check if the track is the current track
                 if (i == _playlistIndex)
                 {
-                    sb.Append($"**`{i + 1}.` [{playlist[i].Track.Info.Title}]({playlist[i].Track.Info.Uri})** - `{playlist[i].Track.Info.Length}` [{playlist[i].RequestedBy.Mention}]\n");
+                    sb.Append($"**`{i + 1}.` {track.Track.Info.Title}** (`{track.Track.Info.Length}`) - {track.RequestedBy.Mention}\n");
                 }
                 else
                 {
-                    sb.Append($"`{i + 1}.` [{playlist[i].Track.Info.Title}]({playlist[i].Track.Info.Uri}) - `{playlist[i].Track.Info.Length}` [{playlist[i].RequestedBy.Mention}]\n");
+                    sb.Append($"`{i + 1}.` {track.Track.Info.Title} (`{track.Track.Info.Length}`) - {track.RequestedBy.Mention}\n");
                 }
             }
-            // Return the StringBuilder as a string
+            // Return the formatted playlist
             return sb.ToString();
         }
 
