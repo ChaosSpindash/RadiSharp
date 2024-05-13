@@ -29,7 +29,7 @@ namespace RadiSharp.Commands
             {
                 await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
                     .WithTitle("❌ Error")
-                    .WithDescription("No active connection to a Lavalink node.")
+                    .WithDescription("No active Discord voice session.")
                     .WithColor(DiscordColor.Red)));
                 return;
             }
@@ -123,7 +123,7 @@ namespace RadiSharp.Commands
                                 .AddFields(
                             [
                                 new DiscordEmbedField("Requested by", queueManager.CurrentTrack()!.RequestedBy.Mention ?? "Unknown", true),
-                                new DiscordEmbedField("Duration", queueManager.CurrentTrack()!.Track.Info.IsStream ? "`🔴 LIVE`" : $"`{queueManager.CurrentTrack()!.Track.Info.Length}`", true)
+                                new DiscordEmbedField("Duration", queueManager.CurrentTrack()!.Track.Info.IsStream ? "`🔴 LIVE`" : $"`{QueueManager.FormatDuration(queueManager.CurrentTrack()!.Track.Info.Length)}`", true)
                             ]
                             ))
                             .AddComponents(new DiscordComponent[]
@@ -146,7 +146,7 @@ namespace RadiSharp.Commands
                                 .AddFields(
                             [
                                 new DiscordEmbedField("Requested by", queueManager.CurrentTrack()!.RequestedBy.Mention ?? "Unknown", true),
-                                new DiscordEmbedField("Duration", queueManager.CurrentTrack()!.Track.Info.IsStream ? "`🔴 LIVE`" : $"`{queueManager.CurrentTrack()!.Track.Info.Length}`", true)
+                                new DiscordEmbedField("Duration", queueManager.CurrentTrack()!.Track.Info.IsStream ? "`🔴 LIVE`" : $"`{QueueManager.FormatDuration(queueManager.CurrentTrack()!.Track.Info.Length)}`", true)
                             ]
                             ))
                             .AddComponents(new DiscordComponent[]
@@ -181,7 +181,7 @@ namespace RadiSharp.Commands
                                 .AddFields(
                             [
                                 new DiscordEmbedField("Requested by", queueManager.CurrentTrack()!.RequestedBy.Mention ?? "Unknown", true),
-                                new DiscordEmbedField("Duration", queueManager.CurrentTrack()!.Track.Info.IsStream ? "`🔴 LIVE`" : $"`{queueManager.CurrentTrack()!.Track.Info.Length}`", true)
+                                new DiscordEmbedField("Duration", queueManager.CurrentTrack()!.Track.Info.IsStream ? "`🔴 LIVE`" : $"`{QueueManager.FormatDuration(queueManager.CurrentTrack()!.Track.Info.Length)}`", true)
                             ]
                             ))
                             .AddComponents(new DiscordComponent[]
@@ -314,7 +314,7 @@ namespace RadiSharp.Commands
             {
                 await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
                     .WithTitle("❌ Error")
-                    .WithDescription("No active connection to a Lavalink node.")
+                    .WithDescription("No active Discord voice session.")
                     .WithColor(DiscordColor.Red)));
                 return;
             }
@@ -358,7 +358,7 @@ namespace RadiSharp.Commands
             {
                 await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
                     .WithTitle("❌ Error")
-                    .WithDescription("No active connection to a Lavalink node.")
+                    .WithDescription("No active Discord voice session.")
                     .WithColor(DiscordColor.Red)));
                 return;
             }
@@ -401,7 +401,7 @@ namespace RadiSharp.Commands
             {
                 await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
                     .WithTitle("❌ Error")
-                    .WithDescription("No active connection to a Lavalink node.")
+                    .WithDescription("No active Discord voice session.")
                     .WithColor(DiscordColor.Red)));
                 return;
             }
@@ -422,8 +422,8 @@ namespace RadiSharp.Commands
                 .AddFields(
                 [
                     new DiscordEmbedField("Total Tracks", $"`{queueManager.PlaylistCount()}`", true),
-                    new DiscordEmbedField("Current Track Position", $"`{queueManager.CurrentTrack()!.Track.Info.Position} / {queueManager.CurrentTrack()!.Track.Info.Length}", true),
-                    new DiscordEmbedField("Total Duration", $"`{queueManager.CurrentTrack()!.Track.Info.Length}`", true)
+                    new DiscordEmbedField("Current Track Position", $"`{QueueManager.FormatDuration(queueManager.CurrentTrack()!.Track.Info.Position)} / {QueueManager.FormatDuration(queueManager.CurrentTrack()!.Track.Info.Length)}`", true),
+                    new DiscordEmbedField("Total Duration", $"`{QueueManager.FormatDuration(queueManager.PlaylistDuration())}`", true)
                 ])
                 .WithFooter($"Page {queueManager.PageCurrent}/{queueManager.PageCount}"))
                 .AddComponents(new DiscordComponent[]
@@ -461,8 +461,8 @@ namespace RadiSharp.Commands
                             .AddFields(
                             [
                                 new DiscordEmbedField("Total Tracks", $"`{queueManager.PlaylistCount()}`", true),
-                                new DiscordEmbedField("Current Track Position", $"`{queueManager.CurrentTrack()!.Track.Info.Position} / {queueManager.CurrentTrack()!.Track.Info.Length}", true),
-                                new DiscordEmbedField("Total Duration", $"`{queueManager.CurrentTrack()!.Track.Info.Length}`", true)
+                                new DiscordEmbedField("Current Track Position", $"`{QueueManager.FormatDuration(queueManager.CurrentTrack()!.Track.Info.Position)} / {QueueManager.FormatDuration(queueManager.CurrentTrack()!.Track.Info.Length)}`", true),
+                                new DiscordEmbedField("Total Duration", $"`{QueueManager.FormatDuration(queueManager.PlaylistDuration())}`", true)
                             ])
                             .WithFooter($"Page {queueManager.PageCurrent}/{queueManager.PageCount}"))
                             .AddComponents(new DiscordComponent[]
@@ -484,8 +484,8 @@ namespace RadiSharp.Commands
                             .AddFields(
                             [
                                 new DiscordEmbedField("Total Tracks", $"`{queueManager.PlaylistCount()}`", true),
-                                new DiscordEmbedField("Current Track Position", $"`{queueManager.CurrentTrack()!.Track.Info.Position} / {queueManager.CurrentTrack()!.Track.Info.Length}", true),
-                                new DiscordEmbedField("Total Duration", $"`{queueManager.CurrentTrack()!.Track.Info.Length}`", true)
+                                new DiscordEmbedField("Current Track Position", $"`{QueueManager.FormatDuration(queueManager.CurrentTrack()!.Track.Info.Position)} / {QueueManager.FormatDuration(queueManager.CurrentTrack()!.Track.Info.Length)}`", true),
+                                new DiscordEmbedField("Total Duration", $"`{QueueManager.FormatDuration(queueManager.PlaylistDuration())}`", true)
                             ])
                             .WithFooter($"Page {queueManager.PageCurrent}/{queueManager.PageCount}"))
                             .AddComponents(new DiscordComponent[]
@@ -506,8 +506,8 @@ namespace RadiSharp.Commands
                             .AddFields(
                             [
                                 new DiscordEmbedField("Total Tracks", $"`{queueManager.PlaylistCount()}`", true),
-                                new DiscordEmbedField("Current Track Position", $"`{queueManager.CurrentTrack()!.Track.Info.Position} / {queueManager.CurrentTrack()!.Track.Info.Length}", true),
-                                new DiscordEmbedField("Total Duration", $"`{queueManager.CurrentTrack()!.Track.Info.Length}`", true)
+                                new DiscordEmbedField("Current Track Position", $"`{QueueManager.FormatDuration(queueManager.CurrentTrack()!.Track.Info.Position)} / {QueueManager.FormatDuration(queueManager.CurrentTrack()!.Track.Info.Length)}`", true),
+                                new DiscordEmbedField("Total Duration", $"`{QueueManager.FormatDuration(queueManager.PlaylistDuration())}`", true)
                             ])
                             .WithFooter($"Page {queueManager.PageCurrent}/{queueManager.PageCount}"))
                             .AddComponents(new DiscordComponent[]
@@ -528,8 +528,8 @@ namespace RadiSharp.Commands
                             .AddFields(
                             [
                                 new DiscordEmbedField("Total Tracks", $"`{queueManager.PlaylistCount()}`", true),
-                                new DiscordEmbedField("Current Track Position", $"`{queueManager.CurrentTrack()!.Track.Info.Position} / {queueManager.CurrentTrack()!.Track.Info.Length}", true),
-                                new DiscordEmbedField("Total Duration", $"`{queueManager.CurrentTrack()!.Track.Info.Length}`", true)
+                                new DiscordEmbedField("Current Track Position", $"`{QueueManager.FormatDuration(queueManager.CurrentTrack()!.Track.Info.Position)} / {QueueManager.FormatDuration(queueManager.CurrentTrack()!.Track.Info.Length)}`", true),
+                                new DiscordEmbedField("Total Duration", $"`{QueueManager.FormatDuration(queueManager.PlaylistDuration())}`", true)
                             ])
                             .WithFooter($"Page {queueManager.PageCurrent}/{queueManager.PageCount}"))
                             .AddComponents(new DiscordComponent[]
@@ -553,9 +553,9 @@ namespace RadiSharp.Commands
             if (ctx.Member?.VoiceState?.Channel is null)
             {
                 await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
-                                      .WithTitle("❌ Error")
-                                                        .WithDescription("You are not in a voice channel.")
-                                                                          .WithColor(DiscordColor.Red)));
+                    .WithTitle("❌ Error")
+                    .WithDescription("You are not in a voice channel.")
+                    .WithColor(DiscordColor.Red)));
                 return;
             }
 
@@ -565,18 +565,18 @@ namespace RadiSharp.Commands
             if (guildPlayer is null)
             {
                 await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
-                                       .WithTitle("❌ Error")
-                                                          .WithDescription("No active connection to a Lavalink node.")
-                                                                             .WithColor(DiscordColor.Red)));
+                    .WithTitle("❌ Error")
+                    .WithDescription("No active Discord voice session.")
+                    .WithColor(DiscordColor.Red)));
                 return;
             }
 
             if (guildPlayer.CurrentTrack is null)
             {
                 await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
-                                       .WithTitle("❌ Error")
-                                                          .WithDescription("No tracks in queue.")
-                                                                             .WithColor(DiscordColor.Red)));
+                    .WithTitle("❌ Error")
+                    .WithDescription("No tracks in queue.")
+                    .WithColor(DiscordColor.Red)));
                 return;
             }
 
@@ -604,7 +604,7 @@ namespace RadiSharp.Commands
             {
                 await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
                     .WithTitle("❌ Error")
-                    .WithDescription("No active connection to a Lavalink node.")
+                    .WithDescription("No active Discord voice session.")
                     .WithColor(DiscordColor.Red)));
                 return;
             }
@@ -621,9 +621,9 @@ namespace RadiSharp.Commands
             queueManager.Clear();
             await guildPlayer.StopAsync();
             await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
-                               .WithTitle("🗑️ Cleared Queue")
-                                              .WithDescription("The queue has been cleared.")
-                                                             .WithColor(DiscordColor.Green)));
+                .WithTitle("🗑️ Cleared Queue")
+                .WithDescription("The queue has been cleared.")
+                .WithColor(DiscordColor.Green)));
             await Task.Delay(10000);
             await ctx.DeleteResponseAsync();
         }

@@ -255,11 +255,11 @@ namespace RadiSharp.Libraries
                 // Check if the track is the current track
                 if (i == _playlistIndex)
                 {
-                    sb.Append($"**`{i + 1}.` {track.Track.Info.Title}** (`{track.Track.Info.Length}`) - {track.RequestedBy.Mention}\n");
+                    sb.Append($"**`{i + 1}.` {track.Track.Info.Title}** (`{FormatDuration(track.Track.Info.Length)}`) - {track.RequestedBy.Mention}\n");
                 }
                 else
                 {
-                    sb.Append($"`{i + 1}.` {track.Track.Info.Title} (`{track.Track.Info.Length}`) - {track.RequestedBy.Mention}\n");
+                    sb.Append($"`{i + 1}.` {track.Track.Info.Title} (`{FormatDuration(track.Track.Info.Length)}`) - {track.RequestedBy.Mention}\n");
                 }
             }
             // Return the formatted playlist
@@ -282,5 +282,15 @@ namespace RadiSharp.Libraries
             return duration;
         }
         
+        public static string FormatDuration(TimeSpan duration)
+        {
+            // If the duration is less than 1 hour, return the minutes and seconds
+            if (duration.Hours == 0)
+            {
+                return duration.ToString(@"m\:ss");
+            }
+            // Otherwise, return the hours, minutes, and seconds
+            return duration.ToString(@"h\:mm\:ss");
+        }
     }
 }
