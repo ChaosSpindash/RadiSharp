@@ -19,7 +19,7 @@ namespace RadiSharp.Commands
         QueueManager queueManager = QueueManager.Instance;
 
         [SlashCommand("stop", "Stop playback, clear queue and leave the voice channel.")]
-        public async Task LeaveAsync(InteractionContext ctx)
+        public async Task StopAsync(InteractionContext ctx)
         {
             
             await ctx.CreateResponseAsync(InteractionResponseType.DeferredChannelMessageWithSource);
@@ -96,7 +96,7 @@ namespace RadiSharp.Commands
                             new DiscordButtonComponent(ButtonStyle.Primary, "player_pause", "", false, new DiscordComponentEmoji("⏸️")),
                             new DiscordButtonComponent(ButtonStyle.Primary, "player_skip", "", false, new DiscordComponentEmoji("⏭️")),
                             new DiscordButtonComponent(ButtonStyle.Primary, "player_stop", "", false, new DiscordComponentEmoji("⏹️")),
-                            new DiscordButtonComponent(queueManager.Repeat ? ButtonStyle.Success : ButtonStyle.Secondary, "player_repeat", "", false, new DiscordComponentEmoji("🔂"))
+                            new DiscordButtonComponent(queueManager.Loop ? ButtonStyle.Success : ButtonStyle.Secondary, "player_loop", "", false, new DiscordComponentEmoji("🔂"))
                         }).SendAsync(ctx.Channel);
                 };
 
@@ -132,7 +132,7 @@ namespace RadiSharp.Commands
                             new DiscordButtonComponent(ButtonStyle.Success, "player_play", "", false, new DiscordComponentEmoji("▶️")),
                             new DiscordButtonComponent(ButtonStyle.Primary, "player_skip", "", false, new DiscordComponentEmoji("⏭️")),
                             new DiscordButtonComponent(ButtonStyle.Primary, "player_stop", "", false, new DiscordComponentEmoji("⏹️")),
-                            new DiscordButtonComponent(queueManager.Repeat ? ButtonStyle.Success : ButtonStyle.Secondary, "player_repeat", "", false, new DiscordComponentEmoji("🔂"))
+                            new DiscordButtonComponent(queueManager.Loop ? ButtonStyle.Success : ButtonStyle.Secondary, "player_loop", "", false, new DiscordComponentEmoji("🔂"))
                         })
                             );
                             break;
@@ -155,7 +155,7 @@ namespace RadiSharp.Commands
                             new DiscordButtonComponent(ButtonStyle.Primary, "player_pause", "", false, new DiscordComponentEmoji("⏸️")),
                             new DiscordButtonComponent(ButtonStyle.Primary, "player_skip", "", false, new DiscordComponentEmoji("⏭️")),
                             new DiscordButtonComponent(ButtonStyle.Primary, "player_stop", "", false, new DiscordComponentEmoji("⏹️")),
-                            new DiscordButtonComponent(queueManager.Repeat ? ButtonStyle.Success : ButtonStyle.Secondary, "player_repeat", "", false, new DiscordComponentEmoji("🔂"))
+                            new DiscordButtonComponent(queueManager.Loop ? ButtonStyle.Success : ButtonStyle.Secondary, "player_loop", "", false, new DiscordComponentEmoji("🔂"))
                         })
                             );
                             break;
@@ -171,8 +171,8 @@ namespace RadiSharp.Commands
                             await Task.Delay(10000);
                             await msg.DeleteAsync();
                             break;
-                        case "player_repeat":
-                            queueManager.ToggleRepeat();
+                        case "player_loop":
+                            queueManager.ToggleLoop();
                             await e.Interaction.CreateResponseAsync(InteractionResponseType.UpdateMessage, new DiscordInteractionResponseBuilder().AddEmbed(new DiscordEmbedBuilder()
                                 .WithTitle("▶️ Now Playing")
                                 .WithDescription($"[{queueManager.CurrentTrack()!.Track.Info.Title}]({queueManager.CurrentTrack()!.Track.Info.Uri})")
@@ -190,7 +190,7 @@ namespace RadiSharp.Commands
                             new DiscordButtonComponent(ButtonStyle.Primary, "player_pause", "", false, new DiscordComponentEmoji("⏸️")),
                             new DiscordButtonComponent(ButtonStyle.Primary, "player_skip", "", false, new DiscordComponentEmoji("⏭️")),
                             new DiscordButtonComponent(ButtonStyle.Primary, "player_stop", "", false, new DiscordComponentEmoji("⏹️")),
-                            new DiscordButtonComponent(queueManager.Repeat ? ButtonStyle.Success : ButtonStyle.Secondary, "player_repeat", "", false, new DiscordComponentEmoji("🔂"))
+                            new DiscordButtonComponent(queueManager.Loop ? ButtonStyle.Success : ButtonStyle.Secondary, "player_loop", "", false, new DiscordComponentEmoji("🔂"))
                         })
                             );
                             break;
@@ -237,7 +237,44 @@ namespace RadiSharp.Commands
                 };
             }
 
-            var loadResult = await guildPlayer.LoadTracksAsync(query);
+            LavalinkTrackLoadingResult loadResult;
+            // Default search to YouTube
+            var searchType = LavalinkSearchType.Youtube;
+            // Check if the query is a URL
+            if (Uri.TryCreate(query, UriKind.Absolute, out Uri? uri))
+            {
+                searchType = LavalinkSearchType.Plain;
+            }
+            // Check if the query is a YouTube URL
+            else if (query.Contains("youtube.com") || query.Contains("youtu.be"))
+            {
+                // Check if the query is a YouTube Playlist URL
+                if (query.Contains("/playlist?list="))
+                {
+                    searchType = LavalinkSearchType.Plain;
+                }
+                else
+                {
+                    searchType = LavalinkSearchType.Youtube;
+                }
+            }
+            // Check if the query is a SoundCloud URL
+            else if (query.Contains("soundcloud.com"))
+            {
+                searchType = LavalinkSearchType.SoundCloud;
+            }
+            // Check if the query is a Spotify URL
+            else if (query.Contains("spotify.com"))
+            {
+                searchType = LavalinkSearchType.Spotify;
+            }
+            // Check if the query is an Apple Music URL
+            else if (query.Contains("music.apple.com"))
+            {
+                searchType = LavalinkSearchType.AppleMusic;
+            }
+
+            loadResult = await guildPlayer.LoadTracksAsync(searchType, query);
 
             if (loadResult.LoadType == LavalinkLoadResultType.Empty || loadResult.LoadType == LavalinkLoadResultType.Error)
             {
@@ -625,6 +662,318 @@ namespace RadiSharp.Commands
                 .WithDescription("The queue has been cleared.")
                 .WithColor(DiscordColor.Green)));
             await Task.Delay(10000);
+            await ctx.DeleteResponseAsync();
+        }
+    
+        [SlashCommand("prev", "Play the previous track.")]
+        public async Task PreviousAsync(InteractionContext ctx)
+        {
+            await ctx.CreateResponseAsync(InteractionResponseType.DeferredChannelMessageWithSource);
+            if (ctx.Member?.VoiceState?.Channel is null)
+            {
+                await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
+                   .WithTitle("❌ Error")
+                   .WithDescription("You are not in a voice channel.")
+                   .WithColor(DiscordColor.Red)));
+                return;
+            }
+
+            var lavalink = ctx.Client.GetLavalink();
+            var guildPlayer = lavalink.GetGuildPlayer(ctx.Guild!);
+
+            if (guildPlayer is null)
+            {
+                await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
+                    .WithTitle("❌ Error")
+                    .WithDescription("No active Discord voice session.")
+                    .WithColor(DiscordColor.Red)));
+                return;
+            }
+
+            if (guildPlayer.CurrentTrack is null)
+            {
+                await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
+                    .WithTitle("❌ Error")
+                    .WithDescription("No tracks in queue.")
+                    .WithColor(DiscordColor.Red)));
+                return;
+            }
+
+            await guildPlayer.PlayAsync(queueManager.Previous()!.Track);
+            await ctx.DeleteResponseAsync();
+        }
+
+        [SlashCommand("loop", "Loop the current track.")]
+        public async Task LoopAsync(InteractionContext ctx)
+        {
+            await ctx.CreateResponseAsync(InteractionResponseType.DeferredChannelMessageWithSource);
+            if (ctx.Member?.VoiceState?.Channel is null)
+            {
+                await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
+                   .WithTitle("❌ Error")
+                   .WithDescription("You are not in a voice channel.")
+                   .WithColor(DiscordColor.Red)));
+                return;
+            }
+
+            var lavalink = ctx.Client.GetLavalink();
+            var guildPlayer = lavalink.GetGuildPlayer(ctx.Guild!);
+
+            if (guildPlayer is null)
+            {
+                await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
+                    .WithTitle("❌ Error")
+                    .WithDescription("No active Discord voice session.")
+                    .WithColor(DiscordColor.Red)));
+                return;
+            }
+
+            if (guildPlayer.CurrentTrack is null)
+            {
+                await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
+                    .WithTitle("❌ Error")
+                    .WithDescription("No tracks in queue.")
+                    .WithColor(DiscordColor.Red)));
+                return;
+            }
+
+            queueManager.ToggleLoop();
+            await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
+                .WithTitle($"🔂 Loop {(queueManager.Loop ? "Enabled" : "Disabled")}")
+                .WithColor(DiscordColor.Green)));
+        }
+
+        [SlashCommand("shuffle", "Shuffle the current queue.")]
+        public async Task ShuffleAsync(InteractionContext ctx)
+        {
+            await ctx.CreateResponseAsync(InteractionResponseType.DeferredChannelMessageWithSource);
+            if (ctx.Member?.VoiceState?.Channel is null)
+            {
+                await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
+                   .WithTitle("❌ Error")
+                   .WithDescription("You are not in a voice channel.")
+                   .WithColor(DiscordColor.Red)));
+                return;
+            }
+
+            var lavalink = ctx.Client.GetLavalink();
+            var guildPlayer = lavalink.GetGuildPlayer(ctx.Guild!);
+
+            if (guildPlayer is null)
+            {
+                await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
+                    .WithTitle("❌ Error")
+                    .WithDescription("No active Discord voice session.")
+                    .WithColor(DiscordColor.Red)));
+                return;
+            }
+
+            if (guildPlayer.CurrentTrack is null)
+            {
+                await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
+                    .WithTitle("❌ Error")
+                    .WithDescription("No tracks in queue.")
+                    .WithColor(DiscordColor.Red)));
+                return;
+            }
+
+            queueManager.ToggleShuffle();
+            await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
+                .WithTitle($"🔀 Shuffle {(queueManager.Shuffle ? "Enabled" : "Disabled")}")
+                .WithColor(DiscordColor.Green)));
+        }
+
+        [SlashCommand("loopq", "Loop the current queue.")]
+        public async Task LoopQueueAsync(InteractionContext ctx)
+        {
+            await ctx.CreateResponseAsync(InteractionResponseType.DeferredChannelMessageWithSource);
+            if (ctx.Member?.VoiceState?.Channel is null)
+            {
+                await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
+                   .WithTitle("❌ Error")
+                   .WithDescription("You are not in a voice channel.")
+                   .WithColor(DiscordColor.Red)));
+                return;
+            }
+
+            var lavalink = ctx.Client.GetLavalink();
+            var guildPlayer = lavalink.GetGuildPlayer(ctx.Guild!);
+
+            if (guildPlayer is null)
+            {
+                await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
+                    .WithTitle("❌ Error")
+                    .WithDescription("No active Discord voice session.")
+                    .WithColor(DiscordColor.Red)));
+                return;
+            }
+
+            if (guildPlayer.CurrentTrack is null)
+            {
+                await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
+                    .WithTitle("❌ Error")
+                    .WithDescription("No tracks in queue.")
+                    .WithColor(DiscordColor.Red)));
+                return;
+            }
+
+            queueManager.ToggleLoopQueue();
+            await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
+                .WithTitle($"🔁 Loop Queue {(queueManager.LoopQueue ? "Enabled" : "Disabled")}")
+                .WithColor(DiscordColor.Green)));
+        }
+
+        [SlashCommand("remove", "Remove a track from the queue.")]
+        public async Task RemoveAsync(InteractionContext ctx, [Option("index", "The index of the track to remove.")] int index)
+        {
+            await ctx.CreateResponseAsync(InteractionResponseType.DeferredChannelMessageWithSource);
+            if (ctx.Member?.VoiceState?.Channel is null)
+            {
+                await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
+                   .WithTitle("❌ Error")
+                   .WithDescription("You are not in a voice channel.")
+                   .WithColor(DiscordColor.Red)));
+                return;
+            }
+
+            var lavalink = ctx.Client.GetLavalink();
+            var guildPlayer = lavalink.GetGuildPlayer(ctx.Guild!);
+
+            if (guildPlayer is null)
+            {
+                await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
+                    .WithTitle("❌ Error")
+                    .WithDescription("No active Discord voice session.")
+                    .WithColor(DiscordColor.Red)));
+                return;
+            }
+
+            if (guildPlayer.CurrentTrack is null)
+            {
+                await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
+                    .WithTitle("❌ Error")
+                    .WithDescription("No tracks in queue.")
+                    .WithColor(DiscordColor.Red)));
+                return;
+            }
+
+            if (index < 1 || index > queueManager.PlaylistCount())
+            {
+                await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
+                    .WithTitle("❌ Error")
+                    .WithDescription("Invalid track index.")
+                    .WithColor(DiscordColor.Red)));
+                return;
+            }
+
+            var track = queueManager.GetTrack(index);
+            queueManager.Remove(index);
+            await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
+                .WithTitle("🗑️ Removed from Queue")
+                .WithDescription($"[{track!.Track.Info.Title}]({track.Track.Info.Uri})")
+                .WithThumbnail($"https://img.youtube.com/vi/{track.Track.Info.Identifier}/maxresdefault.jpg")
+                .WithColor(DiscordColor.Green)
+                .AddFields(
+                [
+                    new DiscordEmbedField("Requested by", track.RequestedBy.Mention ?? "Unknown", true),
+                    new DiscordEmbedField("Duration", track.Track.Info.IsStream ? "`🔴 LIVE`" : $"`{track.Track.Info.Length}`", true)
+                ])));
+        }
+
+        [SlashCommand("move", "Move a track in the queue.")]
+        public async Task MoveAsync(InteractionContext ctx, [Option("from", "The index of the track to move.")] int from, [Option("to", "The index to move the track to.")] int to)
+        {
+            await ctx.CreateResponseAsync(InteractionResponseType.DeferredChannelMessageWithSource);
+            if (ctx.Member?.VoiceState?.Channel is null)
+            {
+                await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
+                   .WithTitle("❌ Error")
+                   .WithDescription("You are not in a voice channel.")
+                   .WithColor(DiscordColor.Red)));
+                return;
+            }
+
+            var lavalink = ctx.Client.GetLavalink();
+            var guildPlayer = lavalink.GetGuildPlayer(ctx.Guild!);
+
+            if (guildPlayer is null)
+            {
+                await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
+                    .WithTitle("❌ Error")
+                    .WithDescription("No active Discord voice session.")
+                    .WithColor(DiscordColor.Red)));
+                return;
+            }
+
+            if (guildPlayer.CurrentTrack is null)
+            {
+                await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
+                    .WithTitle("❌ Error")
+                    .WithDescription("No tracks in queue.")
+                    .WithColor(DiscordColor.Red)));
+                return;
+            }
+
+            if (from < 1 || from > queueManager.PlaylistCount() || to < 1 || to > queueManager.PlaylistCount())
+            {
+                await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
+                    .WithTitle("❌ Error")
+                    .WithDescription("Invalid track index.")
+                    .WithColor(DiscordColor.Red)));
+                return;
+            }
+
+            queueManager.Move(from, to);
+            await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
+                .WithTitle("📝 Moved in Queue")
+                .WithDescription($"Moved track from index {from} to index {to}.")
+                .WithColor(DiscordColor.Green)));
+        }
+
+        [SlashCommand("skipto", "Skip to a specific track in the queue.")]
+        public async Task SkipToAsync(InteractionContext ctx, [Option("index", "The index of the track to skip to.")] int index)
+        {
+            await ctx.CreateResponseAsync(InteractionResponseType.DeferredChannelMessageWithSource);
+            if (ctx.Member?.VoiceState?.Channel is null)
+            {
+                await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
+                   .WithTitle("❌ Error")
+                   .WithDescription("You are not in a voice channel.")
+                   .WithColor(DiscordColor.Red)));
+                return;
+            }
+
+            var lavalink = ctx.Client.GetLavalink();
+            var guildPlayer = lavalink.GetGuildPlayer(ctx.Guild!);
+
+            if (guildPlayer is null)
+            {
+                await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
+                    .WithTitle("❌ Error")
+                    .WithDescription("No active Discord voice session.")
+                    .WithColor(DiscordColor.Red)));
+                return;
+            }
+
+            if (guildPlayer.CurrentTrack is null)
+            {
+                await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
+                    .WithTitle("❌ Error")
+                    .WithDescription("No tracks in queue.")
+                    .WithColor(DiscordColor.Red)));
+                return;
+            }
+
+            if (index < 1 || index > queueManager.PlaylistCount())
+            {
+                await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
+                    .WithTitle("❌ Error")
+                    .WithDescription("Invalid track index.")
+                    .WithColor(DiscordColor.Red)));
+                return;
+            }
+
+            await guildPlayer.PlayAsync(queueManager.SkipTo(index)!.Track);
             await ctx.DeleteResponseAsync();
         }
     }
