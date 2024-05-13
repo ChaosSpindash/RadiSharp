@@ -18,7 +18,7 @@ namespace RadiSharp.Libraries
         private int _playlistIndex = -1;
         public bool LoopQueue { get; private set; } = false;
         public bool Shuffle { get; private set; } = false;
-        public bool Repeat { get; private set; } = false;
+        public bool Loop { get; private set; } = false;
 
         public int PageCurrent { get; private set; } = 0;
         public int PageCount { get; private set; } = 0;
@@ -79,7 +79,7 @@ namespace RadiSharp.Libraries
             // Reset the queue settings
             LoopQueue = false;
             Shuffle = false;
-            Repeat = false;
+            Loop = false;
         }
         public RadiTrack? Next(bool skip = false)
         {
@@ -92,7 +92,7 @@ namespace RadiSharp.Libraries
                 return null;
             }
             // If Repeat is enabled, return the current track
-            if (Repeat && !skip)
+            if (Loop && !skip)
             {
                 return playlist[_playlistIndex];
             }
@@ -208,7 +208,7 @@ namespace RadiSharp.Libraries
                 _shuffledPlaylist.Clear();
             }
         }
-        public void ToggleRepeat() => Repeat = !Repeat;
+        public void ToggleLoop() => Loop = !Loop;
 
         public RadiTrack? CurrentTrack()
         {
@@ -221,6 +221,19 @@ namespace RadiSharp.Libraries
             List<RadiTrack> playlist = Shuffle ? _shuffledPlaylist : _playlist;
             // Return the current track
             return playlist[_playlistIndex];
+        }
+
+        public RadiTrack? GetTrack(int index)
+        {
+            // Determine which playlist to use based on the shuffle setting
+            List<RadiTrack> playlist = Shuffle ? _shuffledPlaylist : _playlist;
+            // Check if the index is out of bounds
+            if (index < 1 || index > playlist.Count)
+            {
+                return null;
+            }
+            // Return the track at the specified index
+            return playlist[index - 1];
         }
 
         public int PlaylistCount() => _playlist.Count;
