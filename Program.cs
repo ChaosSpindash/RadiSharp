@@ -79,13 +79,10 @@ namespace RadiSharp
             // Register the slash commands
             // NOTE: Global commands only update every hour, so it's recommended to use guild commands during development
             var appCommands = Discord.UseApplicationCommands();
-#if DEBUG
+
             appCommands.RegisterGuildCommands<RadiSlashCommands>(yamlConfig.GuildId);
             appCommands.RegisterGuildCommands<PlayerCommands>(yamlConfig.GuildId);
-#else
-            appCommands.RegisterGlobalCommands<RadiSlashCommands>();
-            appCommands.RegisterGlobalCommands<PlayerCommands>();
-#endif
+
 
             // Connect to Discord and Lavalink node
             await Discord.ConnectAsync(new DiscordActivity(yamlConfig.ActivityName,yamlConfig.ActivityType),yamlConfig.Status);

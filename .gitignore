@@ -376,3 +376,6 @@ Lavalink/logs/
 
 # VS Code folders
 .vscode/
+
+# Build folder
+Builds/
