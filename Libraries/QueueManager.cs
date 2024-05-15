@@ -20,6 +20,8 @@ namespace RadiSharp.Libraries
         public bool Shuffle { get; private set; } = false;
         public bool Loop { get; private set; } = false;
 
+        public bool IsPlaying { get; set; } = false;
+
         public int PageCurrent { get; private set; } = 0;
         public int PageCount { get; private set; } = 0;
 
@@ -80,6 +82,7 @@ namespace RadiSharp.Libraries
             LoopQueue = false;
             Shuffle = false;
             Loop = false;
+            IsPlaying = false;
         }
         public RadiTrack? Next(bool skip = false)
         {
@@ -268,11 +271,11 @@ namespace RadiSharp.Libraries
                 // Check if the track is the current track
                 if (i == _playlistIndex)
                 {
-                    sb.Append($"**`{i + 1}.` {track.Track.Info.Title}** (`{FormatDuration(track.Track.Info.Length)}`) - {track.RequestedBy.Mention}\n");
+                    sb.Append($"**`{i + 1}.` [{track.Track.Info.Title}]({track.Track.Info.Uri})** (`{FormatDuration(track.Track.Info.Length)}`) - {track.RequestedBy.Mention}\n");
                 }
                 else
                 {
-                    sb.Append($"`{i + 1}.` {track.Track.Info.Title} (`{FormatDuration(track.Track.Info.Length)}`) - {track.RequestedBy.Mention}\n");
+                    sb.Append($"`{i + 1}.` [{track.Track.Info.Title}]({track.Track.Info.Uri}) (`{FormatDuration(track.Track.Info.Length)}`) - {track.RequestedBy.Mention}\n");
                 }
             }
             // Return the formatted playlist

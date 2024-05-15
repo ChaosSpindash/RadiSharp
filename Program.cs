@@ -11,7 +11,7 @@ namespace RadiSharp
 {
     internal class Program
     {
-        
+
         static void Main(string[] args)
         {
             // Start the main bot loop
@@ -65,6 +65,8 @@ namespace RadiSharp
                 LoggerFactory = loggerFactory
             });
 
+
+
             // Initialize the Lavalink config
             var endpoint = new ConnectionEndpoint(yamlConfig.LavalinkHost, yamlConfig.LavalinkPort);
             var lavalinkConfig = new LavalinkConfiguration
@@ -76,6 +78,24 @@ namespace RadiSharp
 
             var lavalink = Discord.UseLavalink();
 
+            Discord.ComponentInteractionCreated += async (s, e) =>
+            {
+                var ll = Discord.GetLavalink();
+                var gp = ll.GetGuildPlayer(e.Guild);
+                if (gp is null || !gp.CurrentUsers.Contains(e.User))
+                {
+                    if (e.Id.StartsWith("player_") || e.Id.StartsWith("queue_"))
+                    {
+                        await e.Interaction.CreateResponseAsync(InteractionResponseType.ChannelMessageWithSource, new DiscordInteractionResponseBuilder().AsEphemeral().AddEmbed(new DiscordEmbedBuilder()
+                            .WithTitle("❌ Error")
+                            .WithDescription("You are not in a voice channel.")
+                            .WithColor(DiscordColor.Red)));
+                        e.Handled = true;
+                        return;
+                    }
+                }
+            };
+
             // Register the slash commands
             // NOTE: Global commands only update every hour, so it's recommended to use guild commands during development
             var appCommands = Discord.UseApplicationCommands();
@@ -83,9 +103,8 @@ namespace RadiSharp
             appCommands.RegisterGuildCommands<RadiSlashCommands>(yamlConfig.GuildId);
             appCommands.RegisterGuildCommands<PlayerCommands>(yamlConfig.GuildId);
 
-
             // Connect to Discord and Lavalink node
-            await Discord.ConnectAsync(new DiscordActivity(yamlConfig.ActivityName,yamlConfig.ActivityType),yamlConfig.Status);
+            await Discord.ConnectAsync(new DiscordActivity(yamlConfig.ActivityName, yamlConfig.ActivityType), yamlConfig.Status);
             try
             {
                 await lavalink.ConnectAsync(lavalinkConfig);
