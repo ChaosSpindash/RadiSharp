@@ -87,7 +87,7 @@ namespace RadiSharp.Commands
                         .AddFields(
                             [
                                 new DiscordEmbedField("Requested by", queueManager.CurrentTrack()!.RequestedBy.Mention ?? "Unknown", true),
-                                new DiscordEmbedField("Duration", e.Track.Info.IsStream ? "`🔴 LIVE`" : $"`{e.Track.Info.Length}`", true)
+                                new DiscordEmbedField("Duration", e.Track.Info.IsStream ? "`🔴 LIVE`" : $"`{QueueManager.FormatDuration(e.Track.Info.Length)}`", true)
                             ]
                         ))
                         .AddComponents(new DiscordComponent[]
@@ -102,9 +102,9 @@ namespace RadiSharp.Commands
 
                 ctx.Client.ComponentInteractionCreated += async (s, e) =>
                 {
+                    if (e.Handled) return;
                     switch (e.Id)
                     {
-
                         case "player_previous":
                             await e.Interaction.CreateResponseAsync(InteractionResponseType.DeferredMessageUpdate);
                             await guildPlayer.PlayAsync(queueManager.Previous()!.Track);
@@ -116,7 +116,7 @@ namespace RadiSharp.Commands
                         case "player_pause":
                             await guildPlayer.PauseAsync();
                             await e.Interaction.CreateResponseAsync(InteractionResponseType.UpdateMessage, new DiscordInteractionResponseBuilder().AddEmbed(new DiscordEmbedBuilder()
-                                .WithTitle("▶️ Now Playing")
+                                .WithTitle("⏸️ Paused")
                                 .WithDescription($"[{queueManager.CurrentTrack()!.Track.Info.Title}]({queueManager.CurrentTrack()!.Track.Info.Uri})")
                                 .WithThumbnail($"https://img.youtube.com/vi/{queueManager.CurrentTrack()!.Track.Info.Identifier}/maxresdefault.jpg")
                                 .WithColor(DiscordColor.Yellow)
@@ -202,8 +202,12 @@ namespace RadiSharp.Commands
                     switch (e.Reason)
                     {
                         case LavalinkTrackEndReason.Stopped:
-                        case LavalinkTrackEndReason.Replaced:
                         case LavalinkTrackEndReason.Cleanup:
+                            queueManager.IsPlaying = false;
+                            break;
+
+                        case LavalinkTrackEndReason.Replaced:
+                            queueManager.IsPlaying = true;
                             break;
                     
                         case LavalinkTrackEndReason.LoadFailed:
@@ -212,10 +216,12 @@ namespace RadiSharp.Commands
                                 .WithDescription("Failed to load the next track.")
                                 .WithColor(DiscordColor.Red))
                                 .SendAsync(ctx.Channel);
+                            queueManager.IsPlaying = true;
                             await guildPlayer.PlayAsync(queueManager.Next()!.Track);
                             break;
                     
                         case LavalinkTrackEndReason.Finished:
+                            queueManager.IsPlaying = false;
                             RadiTrack? nextTrack = queueManager.Next();
                             if (nextTrack is null)
                             {
@@ -230,6 +236,7 @@ namespace RadiSharp.Commands
                             }
                             else
                             {
+                                queueManager.IsPlaying = true;
                                 await guildPlayer.PlayAsync(nextTrack.Track);
                             }
                             break;
@@ -258,20 +265,10 @@ namespace RadiSharp.Commands
                     searchType = LavalinkSearchType.Youtube;
                 }
             }
-            // Check if the query is a SoundCloud URL
-            else if (query.Contains("soundcloud.com"))
-            {
-                searchType = LavalinkSearchType.SoundCloud;
-            }
             // Check if the query is a Spotify URL
             else if (query.Contains("spotify.com"))
             {
                 searchType = LavalinkSearchType.Spotify;
-            }
-            // Check if the query is an Apple Music URL
-            else if (query.Contains("music.apple.com"))
-            {
-                searchType = LavalinkSearchType.AppleMusic;
             }
 
             loadResult = await guildPlayer.LoadTracksAsync(searchType, query);
@@ -299,7 +296,7 @@ namespace RadiSharp.Commands
                     .AddFields(
                         [
                             new DiscordEmbedField("Requested by", ctx.Member.Mention ?? "Unknown", true),
-                        new DiscordEmbedField("Tracks", $"{playlist.Tracks.Count.ToString()}", true)
+                        new DiscordEmbedField("Tracks", $"`{playlist.Tracks.Count}`", true)
                         ])));
             }
             else
@@ -326,8 +323,11 @@ namespace RadiSharp.Commands
             }
 
 
-
-            await guildPlayer.PlayAsync(queueManager.Next()!.Track);
+            if (!queueManager.IsPlaying)
+            {
+                queueManager.IsPlaying = true;
+                await guildPlayer.PlayAsync(queueManager.Next()!.Track);   
+            }
 
         }
 
@@ -443,7 +443,7 @@ namespace RadiSharp.Commands
                 return;
             }
 
-            if (guildPlayer.CurrentTrack is null)
+            if (queueManager.PlaylistCount() == 0)
             {
                 await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
                     .WithTitle("❌ Error")
@@ -459,14 +459,14 @@ namespace RadiSharp.Commands
                 .AddFields(
                 [
                     new DiscordEmbedField("Total Tracks", $"`{queueManager.PlaylistCount()}`", true),
-                    new DiscordEmbedField("Current Track Position", $"`{QueueManager.FormatDuration(queueManager.CurrentTrack()!.Track.Info.Position)} / {QueueManager.FormatDuration(queueManager.CurrentTrack()!.Track.Info.Length)}`", true),
+                    new DiscordEmbedField("Current Track Position", $"`{QueueManager.FormatDuration(guildPlayer.CurrentTrack!.Info.Position)} / {QueueManager.FormatDuration(queueManager.CurrentTrack()!.Track.Info.Length)}`", true),
                     new DiscordEmbedField("Total Duration", $"`{QueueManager.FormatDuration(queueManager.PlaylistDuration())}`", true)
                 ])
                 .WithFooter($"Page {queueManager.PageCurrent}/{queueManager.PageCount}"))
                 .AddComponents(new DiscordComponent[]
                 {
-                    new DiscordButtonComponent(ButtonStyle.Primary, "queue_previous_page", "", false, new DiscordComponentEmoji("⏮️")),
-                    new DiscordButtonComponent(ButtonStyle.Primary, "queue_next_page", "", false, new DiscordComponentEmoji("⏭️")),
+                    new DiscordButtonComponent(ButtonStyle.Primary, "queue_previous_page", "", false, new DiscordComponentEmoji("◀️")),
+                    new DiscordButtonComponent(ButtonStyle.Primary, "queue_next_page", "", false, new DiscordComponentEmoji("▶️")),
                     new DiscordButtonComponent(queueManager.LoopQueue ? ButtonStyle.Success : ButtonStyle.Secondary, "queue_loop", "", false, new DiscordComponentEmoji("🔁")),
                     new DiscordButtonComponent(queueManager.Shuffle ? ButtonStyle.Success : ButtonStyle.Secondary, "queue_shuffle", "", false, new DiscordComponentEmoji("🔀")),
                     new DiscordButtonComponent(ButtonStyle.Danger, "queue_clear", "", false, new DiscordComponentEmoji("🗑️"))
@@ -475,6 +475,7 @@ namespace RadiSharp.Commands
 
             ctx.Client.ComponentInteractionCreated += async (s, e) =>
             {
+                if (e.Handled) return;
                 switch (e.Id)
                 {
                     case "queue_clear":
@@ -498,14 +499,14 @@ namespace RadiSharp.Commands
                             .AddFields(
                             [
                                 new DiscordEmbedField("Total Tracks", $"`{queueManager.PlaylistCount()}`", true),
-                                new DiscordEmbedField("Current Track Position", $"`{QueueManager.FormatDuration(queueManager.CurrentTrack()!.Track.Info.Position)} / {QueueManager.FormatDuration(queueManager.CurrentTrack()!.Track.Info.Length)}`", true),
+                                new DiscordEmbedField("Current Track Position", $"`{QueueManager.FormatDuration(guildPlayer.CurrentTrack!.Info.Position)} / {QueueManager.FormatDuration(queueManager.CurrentTrack()!.Track.Info.Length)}`", true),
                                 new DiscordEmbedField("Total Duration", $"`{QueueManager.FormatDuration(queueManager.PlaylistDuration())}`", true)
                             ])
                             .WithFooter($"Page {queueManager.PageCurrent}/{queueManager.PageCount}"))
                             .AddComponents(new DiscordComponent[]
                             {
-                                new DiscordButtonComponent(ButtonStyle.Primary, "queue_previous_page", "", false, new DiscordComponentEmoji("⏮️")),
-                                new DiscordButtonComponent(ButtonStyle.Primary, "queue_next_page", "", false, new DiscordComponentEmoji("⏭️")),
+                                new DiscordButtonComponent(ButtonStyle.Primary, "queue_previous_page", "", false, new DiscordComponentEmoji("◀️")),
+                                new DiscordButtonComponent(ButtonStyle.Primary, "queue_next_page", "", false, new DiscordComponentEmoji("▶️")),
                                 new DiscordButtonComponent(queueManager.LoopQueue ? ButtonStyle.Success : ButtonStyle.Secondary, "queue_loop", "", false, new DiscordComponentEmoji("🔁")),
                                 new DiscordButtonComponent(queueManager.Shuffle ? ButtonStyle.Success : ButtonStyle.Secondary, "queue_shuffle", "", false, new DiscordComponentEmoji("🔀")),
                                 new DiscordButtonComponent(ButtonStyle.Danger, "queue_clear", "", false, new DiscordComponentEmoji("🗑️"))
@@ -521,14 +522,14 @@ namespace RadiSharp.Commands
                             .AddFields(
                             [
                                 new DiscordEmbedField("Total Tracks", $"`{queueManager.PlaylistCount()}`", true),
-                                new DiscordEmbedField("Current Track Position", $"`{QueueManager.FormatDuration(queueManager.CurrentTrack()!.Track.Info.Position)} / {QueueManager.FormatDuration(queueManager.CurrentTrack()!.Track.Info.Length)}`", true),
+                                new DiscordEmbedField("Current Track Position", $"`{QueueManager.FormatDuration(guildPlayer.CurrentTrack!.Info.Position)} / {QueueManager.FormatDuration(queueManager.CurrentTrack()!.Track.Info.Length)}`", true),
                                 new DiscordEmbedField("Total Duration", $"`{QueueManager.FormatDuration(queueManager.PlaylistDuration())}`", true)
                             ])
                             .WithFooter($"Page {queueManager.PageCurrent}/{queueManager.PageCount}"))
                             .AddComponents(new DiscordComponent[]
                             {
-                                new DiscordButtonComponent(ButtonStyle.Primary, "queue_previous_page", "", false, new DiscordComponentEmoji("⏮️")),
-                                new DiscordButtonComponent(ButtonStyle.Primary, "queue_next_page", "", false, new DiscordComponentEmoji("⏭️")),
+                                new DiscordButtonComponent(ButtonStyle.Primary, "queue_previous_page", "", false, new DiscordComponentEmoji("◀️")),
+                                new DiscordButtonComponent(ButtonStyle.Primary, "queue_next_page", "", false, new DiscordComponentEmoji("▶️")),
                                 new DiscordButtonComponent(queueManager.LoopQueue ? ButtonStyle.Success : ButtonStyle.Secondary, "queue_loop", "", false, new DiscordComponentEmoji("🔁")),
                                 new DiscordButtonComponent(queueManager.Shuffle ? ButtonStyle.Success : ButtonStyle.Secondary, "queue_shuffle", "", false, new DiscordComponentEmoji("🔀")),
                                 new DiscordButtonComponent(ButtonStyle.Danger, "queue_clear", "", false, new DiscordComponentEmoji("🗑️"))
@@ -543,14 +544,14 @@ namespace RadiSharp.Commands
                             .AddFields(
                             [
                                 new DiscordEmbedField("Total Tracks", $"`{queueManager.PlaylistCount()}`", true),
-                                new DiscordEmbedField("Current Track Position", $"`{QueueManager.FormatDuration(queueManager.CurrentTrack()!.Track.Info.Position)} / {QueueManager.FormatDuration(queueManager.CurrentTrack()!.Track.Info.Length)}`", true),
+                                new DiscordEmbedField("Current Track Position", $"`{QueueManager.FormatDuration(guildPlayer.CurrentTrack!.Info.Position)} / {QueueManager.FormatDuration(queueManager.CurrentTrack()!.Track.Info.Length)}`", true),
                                 new DiscordEmbedField("Total Duration", $"`{QueueManager.FormatDuration(queueManager.PlaylistDuration())}`", true)
                             ])
                             .WithFooter($"Page {queueManager.PageCurrent}/{queueManager.PageCount}"))
                             .AddComponents(new DiscordComponent[]
                             {
-                                new DiscordButtonComponent(ButtonStyle.Primary, "queue_previous_page", "", false, new DiscordComponentEmoji("⏮️")),
-                                new DiscordButtonComponent(ButtonStyle.Primary, "queue_next_page", "", false, new DiscordComponentEmoji("⏭️")),
+                                new DiscordButtonComponent(ButtonStyle.Primary, "queue_previous_page", "", false, new DiscordComponentEmoji("◀️")),
+                                new DiscordButtonComponent(ButtonStyle.Primary, "queue_next_page", "", false, new DiscordComponentEmoji("▶️")),
                                 new DiscordButtonComponent(ButtonStyle.Secondary, "queue_loop", "", false, new DiscordComponentEmoji("🔁")),
                                 new DiscordButtonComponent(ButtonStyle.Secondary, "queue_shuffle", "", false, new DiscordComponentEmoji("🔀")),
                                 new DiscordButtonComponent(ButtonStyle.Danger, "queue_clear", "", false, new DiscordComponentEmoji("🗑️"))
@@ -565,14 +566,14 @@ namespace RadiSharp.Commands
                             .AddFields(
                             [
                                 new DiscordEmbedField("Total Tracks", $"`{queueManager.PlaylistCount()}`", true),
-                                new DiscordEmbedField("Current Track Position", $"`{QueueManager.FormatDuration(queueManager.CurrentTrack()!.Track.Info.Position)} / {QueueManager.FormatDuration(queueManager.CurrentTrack()!.Track.Info.Length)}`", true),
+                                new DiscordEmbedField("Current Track Position", $"`{QueueManager.FormatDuration(guildPlayer.CurrentTrack!.Info.Position)} / {QueueManager.FormatDuration(queueManager.CurrentTrack()!.Track.Info.Length)}`", true),
                                 new DiscordEmbedField("Total Duration", $"`{QueueManager.FormatDuration(queueManager.PlaylistDuration())}`", true)
                             ])
                             .WithFooter($"Page {queueManager.PageCurrent}/{queueManager.PageCount}"))
                             .AddComponents(new DiscordComponent[]
                             {
-                                new DiscordButtonComponent(ButtonStyle.Primary, "queue_previous_page", "", false, new DiscordComponentEmoji("⏮️")),
-                                new DiscordButtonComponent(ButtonStyle.Primary, "queue_next_page", "", false, new DiscordComponentEmoji("⏭️")),
+                                new DiscordButtonComponent(ButtonStyle.Primary, "queue_previous_page", "", false, new DiscordComponentEmoji("◀️")),
+                                new DiscordButtonComponent(ButtonStyle.Primary, "queue_next_page", "", false, new DiscordComponentEmoji("▶️")),
                                 new DiscordButtonComponent(ButtonStyle.Secondary, "queue_loop", "", false, new DiscordComponentEmoji("🔁")),
                                 new DiscordButtonComponent(ButtonStyle.Secondary, "queue_shuffle", "", false, new DiscordComponentEmoji("🔀")),
                                 new DiscordButtonComponent(ButtonStyle.Danger, "queue_clear", "", false, new DiscordComponentEmoji("🗑️"))
