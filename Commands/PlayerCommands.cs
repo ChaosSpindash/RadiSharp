@@ -16,6 +16,7 @@ namespace RadiSharp.Commands
     public class PlayerCommands : ApplicationCommandsModule
     {
 
+        private System.Timers.Timer? _idleTimer;
         QueueManager queueManager = QueueManager.Instance;
 
         [SlashCommand("stop", "Stop playback, clear queue and leave the voice channel.")]
@@ -78,6 +79,9 @@ namespace RadiSharp.Commands
 
                 guildPlayer!.TrackStarted += async (s, e) =>
                 {
+                    _idleTimer?.Stop();
+                    _idleTimer = null;
+
                     await new DiscordMessageBuilder()
                     .AddEmbed(new DiscordEmbedBuilder()
                         .WithTitle("▶️ Now Playing")
@@ -199,6 +203,10 @@ namespace RadiSharp.Commands
 
                 guildPlayer.TrackEnded += async (s, e) =>
                 {
+                    _idleTimer = new System.Timers.Timer(60000);
+                    _idleTimer.Elapsed += async (sender, e) => await DisconnectIdlePlayer(ctx, guildPlayer);
+                    _idleTimer.Start();
+
                     switch (e.Reason)
                     {
                         case LavalinkTrackEndReason.Stopped:
@@ -329,6 +337,20 @@ namespace RadiSharp.Commands
                 await guildPlayer.PlayAsync(queueManager.Next()!.Track);   
             }
 
+        }
+
+        private async Task DisconnectIdlePlayer(InteractionContext ctx, LavalinkGuildPlayer guildPlayer)
+        {
+            queueManager.Clear();
+            await guildPlayer.DisconnectAsync();
+            _idleTimer?.Stop();
+            var msg = await new DiscordMessageBuilder().AddEmbed(new DiscordEmbedBuilder()
+                .WithTitle("👋 Bye bye!")
+                .WithDescription("Disconnected due to inactivity.")
+                .WithColor(DiscordColor.Green))
+                .SendAsync(ctx.Channel);
+            await Task.Delay(10000);
+            await msg.DeleteAsync();
         }
 
         [SlashCommand("pause", "Pause the current track.")]
@@ -976,6 +998,11 @@ namespace RadiSharp.Commands
 
             await guildPlayer.PlayAsync(queueManager.SkipTo(index)!.Track);
             await ctx.DeleteResponseAsync();
+        }
+
+        [SlashCommand("fuckoff", "Leave the voice channel.")]
+        public async Task LeaveAsync(InteractionContext ctx){
+            await StopAsync(ctx);
         }
     }
 }

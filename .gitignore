@@ -379,3 +379,6 @@ Lavalink/logs/
 
 # Build folder
 Builds/
+
+# PowerShell scripts
+*.ps1
