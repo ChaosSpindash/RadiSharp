@@ -364,6 +364,7 @@ FodyWeavers.xsd
 
 # config.yaml containing sensitive information
 config.yaml
+config.canary.yaml
 
 # Log folder
 logs/

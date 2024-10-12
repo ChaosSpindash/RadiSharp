@@ -4,26 +4,19 @@ namespace RadiSharp.Libraries
 {
     public class QueueManager
     {
-        private static readonly QueueManager _instance = new QueueManager();
-        public static QueueManager Instance
-        {
-            get
-            {
-                return _instance;
-            }
-        }
+        public static QueueManager Instance { get; } = new();
 
-        private List<RadiTrack> _playlist = [];
+        private readonly List<RadiTrack> _playlist = [];
         private List<RadiTrack> _shuffledPlaylist = [];
         private int _playlistIndex = -1;
-        public bool LoopQueue { get; private set; } = false;
-        public bool Shuffle { get; private set; } = false;
-        public bool Loop { get; private set; } = false;
+        public bool LoopQueue { get; private set; }
+        public bool Shuffle { get; private set; }
+        public bool Loop { get; private set; }
 
-        public bool IsPlaying { get; set; } = false;
+        public bool IsPlaying { get; set; }
 
-        public int PageCurrent { get; private set; } = 0;
-        public int PageCount { get; private set; } = 0;
+        public int PageCurrent { get; private set; }
+        public int PageCount { get; private set; }
 
         public void Add(RadiTrack track)
         {
@@ -136,9 +129,8 @@ namespace RadiSharp.Libraries
 
         public void Move(int from, int to)
         {
-            List<RadiTrack> playlist;
             // First check if the shuffle setting is enabled
-            playlist = Shuffle ? _shuffledPlaylist : _playlist;
+            List<RadiTrack> playlist = Shuffle ? _shuffledPlaylist : _playlist;
 
             // Check if the indices are out of bounds
             if (from < 1 || from > playlist.Count || to < 1 || to > playlist.Count)
@@ -201,7 +193,7 @@ namespace RadiSharp.Libraries
                 RadiTrack currentTrack = _playlist[_playlistIndex];
                 _shuffledPlaylist = _playlist.ToList();
                 _shuffledPlaylist.RemoveAt(_playlistIndex);
-                _shuffledPlaylist = _shuffledPlaylist.OrderBy(x => Guid.NewGuid()).ToList();
+                _shuffledPlaylist = _shuffledPlaylist.OrderBy(_ => Guid.NewGuid()).ToList();
                 _shuffledPlaylist.Insert(0, currentTrack);
                 _playlistIndex = 0;
             }

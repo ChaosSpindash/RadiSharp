@@ -12,5 +12,7 @@ namespace RadiSharp
         public string LavalinkHost { get; set; } = "";
         public int LavalinkPort { get; set; }
         public string LavalinkPass { get; set; } = "";
+
+        public bool LavalinkSsl { get; set; } = false;
     }
 }

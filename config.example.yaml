@@ -17,3 +17,4 @@ guildID: 000000000000000000
 lavalinkHost: "localhost"
 lavalinkPort: 2333
 lavalinkPass: "youshallnotpass"
+lavalinkSsl: false

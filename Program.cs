@@ -5,14 +5,13 @@ using DisCatSharp.Lavalink;
 using RadiSharp.Commands;
 using Microsoft.Extensions.Logging;
 using Serilog;
-using DisCatSharp.Interactivity.Extensions;
 
 namespace RadiSharp
 {
-    internal class Program
+    internal static class Program
     {
 
-        static void Main(string[] args)
+        static void Main()
         {
             // Start the main bot loop
             MainAsync().GetAwaiter().GetResult();
@@ -43,10 +42,14 @@ namespace RadiSharp
             .WithNamingConvention(CamelCaseNamingConvention.Instance)
             .Build();
 
-            YamlConfig yamlConfig = new();
+            YamlConfig yamlConfig;
             try
             {
-                yamlConfig = yamlDeserializer.Deserialize<YamlConfig>(File.ReadAllText("config.yaml"));
+#if DEBUG
+                yamlConfig = yamlDeserializer.Deserialize<YamlConfig>(await File.ReadAllTextAsync("config.canary.yaml"));
+#else
+                yamlConfig = yamlDeserializer.Deserialize<YamlConfig>(await File.ReadAllTextAsync("config.yaml"));
+#endif
             }
             catch (Exception ex)
             {
@@ -57,7 +60,7 @@ namespace RadiSharp
             Log.Logger.Information("config.yaml successfully loaded.");
 
             // Initialize the bot
-            var Discord = new DiscordClient(new DiscordConfiguration()
+            var discord = new DiscordClient(new DiscordConfiguration()
             {
                 Token = yamlConfig.Token,
                 TokenType = TokenType.Bot,
@@ -68,7 +71,7 @@ namespace RadiSharp
 
 
             // Initialize the Lavalink config
-            var endpoint = new ConnectionEndpoint(yamlConfig.LavalinkHost, yamlConfig.LavalinkPort);
+            var endpoint = new ConnectionEndpoint(yamlConfig.LavalinkHost, yamlConfig.LavalinkPort, yamlConfig.LavalinkSsl);
             var lavalinkConfig = new LavalinkConfiguration
             {
                 Password = yamlConfig.LavalinkPass,
@@ -76,11 +79,11 @@ namespace RadiSharp
                 SocketEndpoint = endpoint
             };
 
-            var lavalink = Discord.UseLavalink();
+            var lavalink = discord.UseLavalink();
 
-            Discord.ComponentInteractionCreated += async (s, e) =>
+            discord.ComponentInteractionCreated += async (_, e) =>
             {
-                var ll = Discord.GetLavalink();
+                var ll = discord.GetLavalink();
                 var gp = ll.GetGuildPlayer(e.Guild);
                 if (gp is null || !gp.CurrentUsers.Contains(e.User))
                 {
@@ -91,20 +94,19 @@ namespace RadiSharp
                             .WithDescription("You are not in a voice channel.")
                             .WithColor(DiscordColor.Red)));
                         e.Handled = true;
-                        return;
                     }
                 }
             };
 
             // Register the slash commands
             // NOTE: Global commands only update every hour, so it's recommended to use guild commands during development
-            var appCommands = Discord.UseApplicationCommands();
+            var appCommands = discord.UseApplicationCommands();
 
             appCommands.RegisterGuildCommands<RadiSlashCommands>(yamlConfig.GuildId);
             appCommands.RegisterGuildCommands<PlayerCommands>(yamlConfig.GuildId);
 
             // Connect to Discord and Lavalink node
-            await Discord.ConnectAsync(new DiscordActivity(yamlConfig.ActivityName, yamlConfig.ActivityType), yamlConfig.Status);
+            await discord.ConnectAsync(new DiscordActivity(yamlConfig.ActivityName, yamlConfig.ActivityType), yamlConfig.Status);
             try
             {
                 await lavalink.ConnectAsync(lavalinkConfig);
