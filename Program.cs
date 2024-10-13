@@ -85,7 +85,7 @@ namespace RadiSharp
             {
                 var ll = discord.GetLavalink();
                 var gp = ll.GetGuildPlayer(e.Guild);
-                if (gp is null || !gp.CurrentUsers.Contains(e.User))
+                if (gp is null || !gp.Channel.Users.Contains(e.User))
                 {
                     if (e.Id.StartsWith("player_") || e.Id.StartsWith("queue_"))
                     {
