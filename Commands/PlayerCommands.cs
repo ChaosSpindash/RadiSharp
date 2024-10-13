@@ -6,6 +6,7 @@ using DisCatSharp.Lavalink;
 using DisCatSharp.Lavalink.Entities;
 using DisCatSharp.Lavalink.Enums;
 using RadiSharp.Libraries;
+using YTSearch.NET;
 
 namespace RadiSharp.Commands
 {
@@ -37,7 +38,7 @@ namespace RadiSharp.Commands
         }
 
         [SlashCommand("play", "Play a track from an URL or search query.")]
-        public async Task PlayAsync(InteractionContext ctx, [Option("query", "The query to search for.")] string query)
+        public async Task PlayAsync(InteractionContext ctx, [Option("query", "The query to search for.")] string? query)
         {
             await ctx.CreateResponseAsync(InteractionResponseType.DeferredChannelMessageWithSource);
             if (ctx.Member?.VoiceState?.Channel is null)
@@ -151,9 +152,10 @@ namespace RadiSharp.Commands
                     }
                 };
             }
-
+            string? originalQuery = query;
             // Default search to YouTube
             var searchType = LavalinkSearchType.Youtube;
+            
             // Check if the query is a URL
             if (Uri.TryCreate(query, UriKind.Absolute, out _))
             {
@@ -170,40 +172,54 @@ namespace RadiSharp.Commands
             {
                 searchType = LavalinkSearchType.Spotify;
             }
-
-            var loadResult = await guildPlayer.LoadTracksAsync(searchType, query);
-
-            if (loadResult.LoadType is LavalinkLoadResultType.Empty or LavalinkLoadResultType.Error)
-            {
-                await ctx.EditResponseAsync(new DiscordWebhookBuilder()
-                    .AddEmbed(EmbedGenerator.NoMatchErrorEmbed(query)));
-                return;
-            }
-
-            if (loadResult.LoadType == LavalinkLoadResultType.Playlist)
-            {
-                LavalinkPlaylist playlist = loadResult.GetResultAs<LavalinkPlaylist>();
-                
-                _queueManager.AddPlaylist(new RadiPlaylist(playlist, ctx.Member));
-                
-
-                await ctx.EditResponseAsync(new DiscordWebhookBuilder()
-                    .AddEmbed(EmbedGenerator.AddPlaylistEmbed(playlist, ctx.Member.Mention)));
-            }
             else
             {
-                LavalinkTrack track = loadResult.LoadType switch
+                // Prepare YouTube search client
+                var youtubeClient = new YouTubeSearchClient();
+                var search = await youtubeClient.SearchYoutubeVideoAsync(query);
+                if (search.Results.Count > 0)
                 {
-                    LavalinkLoadResultType.Track => loadResult.GetResultAs<LavalinkTrack>(),
-                    LavalinkLoadResultType.Search => loadResult.GetResultAs<List<LavalinkTrack>>().First(),
-                    _ => throw new InvalidOperationException("Unexpected load result type.")
-                };
-                
-                RadiTrack radiTrack = new(track, ctx.Member);
-                _queueManager.Add(radiTrack);
+                    query = search.Results.First().Url;
+                }
+                searchType = LavalinkSearchType.Plain;
+            }
 
-                await ctx.EditResponseAsync(new DiscordWebhookBuilder()
-                    .AddEmbed(EmbedGenerator.AddTrackEmbed(radiTrack)));
+            if (query != null)
+            {
+                var loadResult = await guildPlayer.LoadTracksAsync(searchType, query);
+
+                if (loadResult.LoadType is LavalinkLoadResultType.Empty or LavalinkLoadResultType.Error)
+                {
+                    await ctx.EditResponseAsync(new DiscordWebhookBuilder()
+                        .AddEmbed(EmbedGenerator.NoMatchErrorEmbed(originalQuery)));
+                    return;
+                }
+
+                if (loadResult.LoadType == LavalinkLoadResultType.Playlist)
+                {
+                    LavalinkPlaylist playlist = loadResult.GetResultAs<LavalinkPlaylist>();
+                
+                    _queueManager.AddPlaylist(new RadiPlaylist(playlist, ctx.Member));
+                
+
+                    await ctx.EditResponseAsync(new DiscordWebhookBuilder()
+                        .AddEmbed(EmbedGenerator.AddPlaylistEmbed(playlist, ctx.Member.Mention)));
+                }
+                else
+                {
+                    LavalinkTrack track = loadResult.LoadType switch
+                    {
+                        LavalinkLoadResultType.Track => loadResult.GetResultAs<LavalinkTrack>(),
+                        LavalinkLoadResultType.Search => loadResult.GetResultAs<List<LavalinkTrack>>().First(),
+                        _ => throw new InvalidOperationException("Unexpected load result type.")
+                    };
+                
+                    RadiTrack radiTrack = new(track, ctx.Member);
+                    _queueManager.Add(radiTrack);
+
+                    await ctx.EditResponseAsync(new DiscordWebhookBuilder()
+                        .AddEmbed(EmbedGenerator.AddTrackEmbed(radiTrack)));
+                }
             }
 
 

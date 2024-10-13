@@ -53,8 +53,13 @@ namespace RadiSharp
             }
             catch (Exception ex)
             {
+#if DEBUG
+                Log.Logger.Fatal($"Could not load config.canary.yaml - Abort.\n{ex}");
+#else
                 Log.Logger.Fatal($"Could not load config.yaml - Abort.\n{ex}");
+#endif
                 await Task.Delay(5000);
+                Environment.ExitCode = 2;
                 return;
             }
             Log.Logger.Information("config.yaml successfully loaded.");

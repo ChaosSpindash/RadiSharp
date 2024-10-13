@@ -192,7 +192,7 @@ public static class EmbedGenerator
             ]);
     }
     
-    public static DiscordEmbedBuilder NoMatchErrorEmbed(string query)
+    public static DiscordEmbedBuilder NoMatchErrorEmbed(string? query)
     {
         return new DiscordEmbedBuilder()
             .WithTitle("❌ No match found.")
