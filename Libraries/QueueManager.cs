@@ -15,7 +15,7 @@ namespace RadiSharp.Libraries
 
         public bool IsPlaying { get; set; }
 
-        public int PageCurrent { get; private set; }
+        public int PageCurrent { get; set; }
         public int PageCount { get; private set; }
 
         public void Add(RadiTrack track)
@@ -199,7 +199,7 @@ namespace RadiSharp.Libraries
             }
             else
             {
-                _playlistIndex = _shuffledPlaylist.IndexOf(_playlist[_playlistIndex]);
+                _playlistIndex = _playlist.IndexOf(_shuffledPlaylist[_playlistIndex]);
                 _shuffledPlaylist.Clear();
             }
         }
@@ -243,7 +243,7 @@ namespace RadiSharp.Libraries
             // Calculate the total number of pages
             PageCount = (int)Math.Ceiling((double)playlist.Count / 10);
             // Check if the page is out of bounds
-            if (page < 0 || page >= PageCount)
+            if (page < 0 || page > PageCount)
             {
                 return "Invalid page number.";
             }

@@ -7,6 +7,8 @@ public enum EmbedErrorType
     ErrNotFound,                    // Not found error
     ErrInvalidArg,                  // Invalid argument error
     ErrInvalidCmd,                  // Invalid command error
+    ErrIndexOutOfRange,             // Index out of range error
+    ErrRequestTimeout,              // Request timeout error
     ErrUserNotInVoice,              // User not in voice error
     ErrVoiceChannelInvalid,         // Voice channel invalid error
     ErrLavalinkConn,                // Lavalink connection error

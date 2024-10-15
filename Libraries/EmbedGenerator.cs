@@ -1,6 +1,8 @@
-﻿using DisCatSharp.Entities;
+﻿using System.Text;
+using DisCatSharp.Entities;
 using DisCatSharp.Lavalink;
 using DisCatSharp.Lavalink.Entities;
+using YTSearch.NET;
 
 namespace RadiSharp.Libraries;
 
@@ -43,6 +45,11 @@ public static class EmbedGenerator
                     .WithDescription("Please join a valid voice or stage channel.")
                     .WithColor(DiscordColor.Red)
                     .WithFooter("ERR_VOICE_CHANNEL_INVALID");
+            case EmbedErrorType.ErrIndexOutOfRange:
+                return new DiscordEmbedBuilder()
+                    .WithTitle("❌ Selected index is out of range.")
+                    .WithColor(DiscordColor.Red)
+                    .WithFooter("ERR_INDEX_OUT_OF_RANGE");
             default:
                 return new DiscordEmbedBuilder()
                     .WithTitle("❌ An unknown error occurred.")
@@ -120,7 +127,16 @@ public static class EmbedGenerator
     public static DiscordEmbedBuilder QueueEmbed(QueueManager queueManager, LavalinkGuildPlayer guildPlayer, int pageJump = 0)
     {
         DiscordEmbedBuilder embed = new();
-        var description = pageJump != 0 ? queueManager.GetPlaylist(queueManager.PageCurrent + pageJump) : queueManager.GetPlaylist();
+        string? description;
+        if (pageJump != 0)
+        {
+            queueManager.PageCurrent += pageJump;
+            description = queueManager.GetPlaylist(queueManager.PageCurrent);
+        }
+        else
+        {
+            description = queueManager.GetPlaylist();
+        }
 
         return embed
             .WithTitle("📜 Queue")
@@ -141,8 +157,8 @@ public static class EmbedGenerator
     {
         var components = new List<DiscordComponent>
         {
-            new DiscordButtonComponent(ButtonStyle.Primary, "queue_previous_page", "", false, new DiscordComponentEmoji("◀️")),
-            new DiscordButtonComponent(ButtonStyle.Primary, "queue_next_page", "", false, new DiscordComponentEmoji("▶️")),
+            new DiscordButtonComponent(ButtonStyle.Primary, "queue_previous_page", "", queueManager.PageCurrent <= 1, new DiscordComponentEmoji("◀️")),
+            new DiscordButtonComponent(ButtonStyle.Primary, "queue_next_page", "", queueManager.PageCurrent >= queueManager.PageCount, new DiscordComponentEmoji("▶️")),
             new DiscordButtonComponent(queueManager.LoopQueue ? ButtonStyle.Success : ButtonStyle.Secondary, "queue_loop", "", false, new DiscordComponentEmoji("🔁")),
             new DiscordButtonComponent(queueManager.Shuffle ? ButtonStyle.Success : ButtonStyle.Secondary, "queue_shuffle", "", false, new DiscordComponentEmoji("🔀")),
             new DiscordButtonComponent(ButtonStyle.Danger, "queue_clear", "", false, new DiscordComponentEmoji("🗑️"))
@@ -199,6 +215,21 @@ public static class EmbedGenerator
             .WithDescription($"No tracks or playlists found for `{query}`.")
             .WithColor(DiscordColor.Red)
             .WithFooter("ERR_LAVALINK_QUERY_NO_MATCH");
+    }
+
+    public static DiscordEmbedBuilder SearchEmbed(YouTubeVideoSearchResult results)
+    {
+        StringBuilder sb = new();
+        int i = 1;
+        foreach (var v in results.Results)
+        {
+            sb.Append($"`{i++}`**[{v.Title}]({v.Url})** - {v.Author} (`{FormatDuration(v.Length)}`)\n");
+        }
+        return new DiscordEmbedBuilder()
+            .WithTitle($"🔍 {results.Results.Count} results found.")
+            .WithDescription(sb.ToString())
+            .WithColor(DiscordColor.Blurple)
+            .WithFooter($"Respond with the number of the track you want to add to the queue.");
     }
 
     private static string FormatDuration(TimeSpan duration)

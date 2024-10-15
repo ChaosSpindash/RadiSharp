@@ -1,9 +1,12 @@
 ﻿using DisCatSharp.ApplicationCommands;
 using DisCatSharp.Entities;
+using DisCatSharp.Interactivity;
+using DisCatSharp.Interactivity.Extensions;
 using DisCatSharp.Net;
 using DisCatSharp.Lavalink;
 using RadiSharp.Commands;
 using Microsoft.Extensions.Logging;
+using RadiSharp.Libraries;
 using Serilog;
 
 namespace RadiSharp
@@ -73,7 +76,10 @@ namespace RadiSharp
                 LoggerFactory = loggerFactory
             });
 
-
+            discord.UseInteractivity(new InteractivityConfiguration
+            {
+                Timeout = TimeSpan.FromSeconds(30)
+            });
 
             // Initialize the Lavalink config
             var endpoint = new ConnectionEndpoint(yamlConfig.LavalinkHost, yamlConfig.LavalinkPort, yamlConfig.LavalinkSsl);
@@ -86,29 +92,15 @@ namespace RadiSharp
 
             var lavalink = discord.UseLavalink();
 
-            discord.ComponentInteractionCreated += async (_, e) =>
-            {
-                var ll = discord.GetLavalink();
-                var gp = ll.GetGuildPlayer(e.Guild);
-                if (gp is null || !gp.Channel.Users.Contains(e.User))
-                {
-                    if (e.Id.StartsWith("player_") || e.Id.StartsWith("queue_"))
-                    {
-                        await e.Interaction.CreateResponseAsync(InteractionResponseType.ChannelMessageWithSource, new DiscordInteractionResponseBuilder().AsEphemeral().AddEmbed(new DiscordEmbedBuilder()
-                            .WithTitle("❌ Error")
-                            .WithDescription("You are not in a voice channel.")
-                            .WithColor(DiscordColor.Red)));
-                        e.Handled = true;
-                    }
-                }
-            };
-
             // Register the slash commands
             // NOTE: Global commands only update every hour, so it's recommended to use guild commands during development
             var appCommands = discord.UseApplicationCommands();
 
             appCommands.RegisterGuildCommands<RadiSlashCommands>(yamlConfig.GuildId);
             appCommands.RegisterGuildCommands<PlayerCommands>(yamlConfig.GuildId);
+            
+            // Register the event handlers
+            discord.RegisterEventHandler<EmbedButtons>();
 
             // Connect to Discord and Lavalink node
             await discord.ConnectAsync(new DiscordActivity(yamlConfig.ActivityName, yamlConfig.ActivityType), yamlConfig.Status);
