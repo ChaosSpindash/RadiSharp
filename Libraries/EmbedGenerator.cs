@@ -100,7 +100,7 @@ public static class EmbedGenerator
             embed.WithTitle("⏸️ Paused").WithColor(DiscordColor.Yellow);
         
         return embed
-                .WithDescription($"[{track.Track.Info.Title}]({track.Track.Info.Uri})")
+                .WithDescription($"**[{track.Track.Info.Title}]({track.Track.Info.Uri})**\n{track.Track.Info.Author}")
                 .WithThumbnail($"https://img.youtube.com/vi/{track.Track.Info.Identifier}/maxresdefault.jpg")
                 .AddFields(
                     [
@@ -145,9 +145,6 @@ public static class EmbedGenerator
             .AddFields(
             [
                 new DiscordEmbedField("Total Tracks", $"`{queueManager.PlaylistCount()}`", true),
-                new DiscordEmbedField("Current Track Position",
-                    $"`{QueueManager.FormatDuration(guildPlayer.CurrentTrack!.Info.Position)} / {QueueManager.FormatDuration(queueManager.CurrentTrack()!.Track.Info.Length)}`",
-                    true),
                 new DiscordEmbedField("Total Duration",
                     $"`{QueueManager.FormatDuration(queueManager.PlaylistDuration())}`", true)
             ])
@@ -170,7 +167,7 @@ public static class EmbedGenerator
     {
         return new DiscordEmbedBuilder()
             .WithTitle("📝 Added to Queue")
-            .WithDescription($"[{track.Track.Info.Title}]({track.Track.Info.Uri})")
+            .WithDescription($"**[{track.Track.Info.Title}]({track.Track.Info.Uri})**\n{track.Track.Info.Author}")
             .WithThumbnail($"https://img.youtube.com/vi/{track.Track.Info.Identifier}/maxresdefault.jpg")
             .WithColor(DiscordColor.Green)
             .AddFields(

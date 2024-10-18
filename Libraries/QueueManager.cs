@@ -263,11 +263,11 @@ namespace RadiSharp.Libraries
                 // Check if the track is the current track
                 if (i == _playlistIndex)
                 {
-                    sb.Append($"**`{i + 1}.` [{track.Track.Info.Title}]({track.Track.Info.Uri})** (`{FormatDuration(track.Track.Info.Length)}`) - {track.RequestedBy.Mention}\n");
+                    sb.Append($"**`{i + 1}.` [{track.Track.Info.Title}]({track.Track.Info.Uri}) - {track.Track.Info.Author}** (`{FormatDuration(track.Track.Info.Length)}`) - {track.RequestedBy.Mention}\n");
                 }
                 else
                 {
-                    sb.Append($"`{i + 1}.` [{track.Track.Info.Title}]({track.Track.Info.Uri}) (`{FormatDuration(track.Track.Info.Length)}`) - {track.RequestedBy.Mention}\n");
+                    sb.Append($"`{i + 1}.` [{track.Track.Info.Title}]({track.Track.Info.Uri}) - {track.Track.Info.Author} (`{FormatDuration(track.Track.Info.Length)}`) - {track.RequestedBy.Mention}\n");
                 }
             }
             // Return the formatted playlist
