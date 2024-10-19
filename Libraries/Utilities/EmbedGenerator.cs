@@ -2,9 +2,11 @@
 using DisCatSharp.Entities;
 using DisCatSharp.Lavalink;
 using DisCatSharp.Lavalink.Entities;
+using RadiSharp.Libraries.Managers;
+using RadiSharp.Typedefs;
 using YTSearch.NET;
 
-namespace RadiSharp.Libraries;
+namespace RadiSharp.Libraries.Utilities;
 
 public static class EmbedGenerator
 {

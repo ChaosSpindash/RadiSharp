@@ -1,4 +1,4 @@
-﻿namespace RadiSharp.Libraries;
+﻿namespace RadiSharp.Typedefs;
 
 public enum EmbedStatusType
 {

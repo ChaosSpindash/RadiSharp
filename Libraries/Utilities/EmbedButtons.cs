@@ -1,8 +1,10 @@
 ﻿using DisCatSharp.Entities;
 using DisCatSharp.EventArgs;
 using DisCatSharp.Lavalink;
+using RadiSharp.Libraries.Managers;
+using RadiSharp.Typedefs;
 
-namespace RadiSharp.Libraries;
+namespace RadiSharp.Libraries.Utilities;
 
 [EventHandler]
 // ReSharper disable once ClassNeverInstantiated.Global

@@ -9,6 +9,9 @@ using DisCatSharp.Lavalink.Entities;
 using DisCatSharp.Lavalink.Enums;
 using DisCatSharp.Lavalink.EventArgs;
 using RadiSharp.Libraries;
+using RadiSharp.Libraries.Managers;
+using RadiSharp.Libraries.Utilities;
+using RadiSharp.Typedefs;
 using YTSearch.NET;
 
 namespace RadiSharp.Commands
