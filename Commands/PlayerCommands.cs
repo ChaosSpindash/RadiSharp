@@ -17,18 +17,39 @@ using YTSearch.NET;
 namespace RadiSharp.Commands
 {
     // ReSharper disable once ClassNeverInstantiated.Global
+    /// <summary>
+    /// Contains commands for controlling the player and other related functions.
+    /// </summary>
     public class PlayerCommands : ApplicationCommandsModule
     {
+        /// <summary>
+        /// The queue manager instance.
+        /// </summary>
         private readonly QueueManager _queueManager = QueueManager.Instance;
+
         private AsyncEventHandler<LavalinkGuildPlayer, LavalinkTrackStartedEventArgs>? _trackStartedHandler;
         private AsyncEventHandler<LavalinkGuildPlayer, LavalinkTrackEndedEventArgs>? _trackEndedHandler;
+
+        /// <summary>
+        /// Determines whether the command was called internally or by a user.
+        /// </summary>
         private bool _internalCall;
 
+        /// <summary>
+        /// Stops playback, clears the queue and leaves the voice channel.
+        /// </summary>
+        /// <param name="ctx">The context of the interaction.</param>
         [SlashCommand("stop", "Stop playback, clear queue and leave the voice channel.")]
         // ReSharper disable once MemberCanBePrivate.Global
         public async Task StopAsync(InteractionContext ctx)
         {
             await ctx.CreateResponseAsync(InteractionResponseType.DeferredChannelMessageWithSource);
+            if (ctx.Member?.VoiceState?.Channel is null)
+            {
+                await ctx.EditResponseAsync(
+                    new DiscordWebhookBuilder().AddEmbed(EmbedGenerator.ErrorEmbed(EmbedErrorType.ErrUserNotInVoice)));
+                return;
+            }
             var lavalink = ctx.Client.GetLavalink();
             var guildPlayer = lavalink.GetGuildPlayer(ctx.Guild!);
             if (guildPlayer is null)
@@ -36,11 +57,13 @@ namespace RadiSharp.Commands
                 await ctx.EditResponseAsync(
                     new DiscordWebhookBuilder().AddEmbed(
                         EmbedGenerator.ErrorEmbed(EmbedErrorType.ErrLavalinkNoSession)));
+                EventLogger.LogPlayerEvent(ctx.Guild!.Id, PlayerEventType.Error, ["ERR_LAVALINK_NO_SESSION", "No Lavalink session found for guild"]);
                 return;
             }
 
             _queueManager.Clear();
             await guildPlayer.DisconnectAsync();
+            EventLogger.LogPlayerEvent(ctx.Guild!.Id, PlayerEventType.Disconnect);
             if (_trackStartedHandler != null) guildPlayer.TrackStarted -= _trackStartedHandler;
             if (_trackEndedHandler != null) guildPlayer.TrackEnded -= _trackEndedHandler;
             await ctx.EditResponseAsync(
@@ -49,12 +72,17 @@ namespace RadiSharp.Commands
             await ctx.DeleteResponseAsync();
         }
 
-        [SlashCommand("play", "Play a track from an URL or search query.")]
+        /// <summary>
+        /// Plays a track from a URL or search query.
+        /// </summary>
+        /// <param name="ctx">The context of the interaction.</param>
+        /// <param name="query">The query to search for.</param>
+        [SlashCommand("play", "Play a track from a URL or search query.")]
         public async Task PlayAsync(InteractionContext ctx, [Option("query", "The query to search for.")] string? query)
         {
             if (!_internalCall)
                 await ctx.CreateResponseAsync(InteractionResponseType.DeferredChannelMessageWithSource);
-            
+
             if (ctx.Member?.VoiceState?.Channel is null)
             {
                 if (!_internalCall)
@@ -69,9 +97,10 @@ namespace RadiSharp.Commands
                         .AddEmbed(EmbedGenerator.ErrorEmbed(EmbedErrorType.ErrUserNotInVoice))
                         .SendAsync(ctx.Channel);
                 }
+
                 return;
             }
-            
+
 
             var lavalink = ctx.Client.GetLavalink();
             var guildPlayer = lavalink.GetGuildPlayer(ctx.Guild!);
@@ -99,11 +128,12 @@ namespace RadiSharp.Commands
                 }
 
                 await session.ConnectAsync(ctx.Member.VoiceState.Channel);
+                EventLogger.LogPlayerEvent(ctx.Guild!.Id, PlayerEventType.Connect, [$"{ctx.Member.VoiceState.Channel.Id}"]);
                 guildPlayer = lavalink.GetGuildPlayer(ctx.Guild!);
 
                 _trackStartedHandler = CreateTrackStartedHandler(ctx);
                 guildPlayer!.TrackStarted += _trackStartedHandler;
-                
+
                 _trackEndedHandler = CreateTrackEndedHandler(ctx);
                 guildPlayer.TrackEnded += _trackEndedHandler;
             }
@@ -158,7 +188,7 @@ namespace RadiSharp.Commands
                             .AddEmbed(EmbedGenerator.NoMatchErrorEmbed(originalQuery))
                             .SendAsync(ctx.Channel);
                     }
-
+                    EventLogger.LogPlayerEvent(ctx.Guild!.Id, PlayerEventType.Error, ["ERR_SEARCH_QUERY_NO_MATCH", $"No matches found for query: {query}"]);
                     return;
                 }
 
@@ -179,15 +209,34 @@ namespace RadiSharp.Commands
                             .AddEmbed(EmbedGenerator.AddPlaylistEmbed(playlist, ctx.Member.Mention))
                             .SendAsync(ctx.Channel);
                     }
+                    EventLogger.LogPlayerEvent(ctx.Guild!.Id, PlayerEventType.QueuePlaylist, [$"{query} - {playlist.Info.Name} ({playlist.Tracks.Count} tracks)"]);
                 }
                 else
                 {
-                    LavalinkTrack track = loadResult.LoadType switch
+                    LavalinkTrack track;
+                    switch (loadResult.LoadType)
                     {
-                        LavalinkLoadResultType.Track => loadResult.GetResultAs<LavalinkTrack>(),
-                        LavalinkLoadResultType.Search => loadResult.GetResultAs<List<LavalinkTrack>>().First(),
-                        _ => throw new InvalidOperationException("Unexpected load result type.")
-                    };
+                        case LavalinkLoadResultType.Track:
+                            track = loadResult.GetResultAs<LavalinkTrack>();
+                            break;
+                        case LavalinkLoadResultType.Search:
+                            track = loadResult.GetResultAs<List<LavalinkTrack>>().First();
+                            break;
+                        default:
+                            if (!_internalCall)
+                            {
+                                await ctx.EditResponseAsync(new DiscordWebhookBuilder()
+                                    .AddEmbed(EmbedGenerator.ErrorEmbed(EmbedErrorType.ErrLavalinkLoadFailed)));
+                            }
+                            else
+                            {
+                                await new DiscordMessageBuilder()
+                                    .AddEmbed(EmbedGenerator.ErrorEmbed(EmbedErrorType.ErrLavalinkLoadFailed))
+                                    .SendAsync(ctx.Channel);
+                            }
+                            EventLogger.LogPlayerEvent(ctx.Guild!.Id, PlayerEventType.Error, ["ERR_LAVALINK_INVALID_LOAD_RESULT_TYPE", $"Invalid load result type for query: {query}"]);
+                            return;
+                    }
 
                     RadiTrack radiTrack = new(track, ctx.Member);
                     _queueManager.Add(radiTrack);
@@ -203,6 +252,7 @@ namespace RadiSharp.Commands
                             .AddEmbed(EmbedGenerator.AddTrackEmbed(radiTrack))
                             .SendAsync(ctx.Channel);
                     }
+                    EventLogger.LogPlayerEvent(ctx.Guild!.Id, PlayerEventType.Queue, [$"{query} - {track.Info.Title}"]);
                 }
             }
 
@@ -215,6 +265,11 @@ namespace RadiSharp.Commands
         }
 
         // ReSharper disable once UnusedMember.Local
+        /// <summary>
+        /// Disconnects the bot if it is left alone in a voice channel for a certain amount of time.
+        /// </summary>
+        /// <param name="ctx">The context of the interaction.</param>
+        /// <param name="guildPlayer">The player to disconnect.</param>
         private async Task DisconnectIdlePlayer(InteractionContext ctx, LavalinkGuildPlayer guildPlayer)
         {
             _queueManager.Clear();
@@ -223,10 +278,15 @@ namespace RadiSharp.Commands
             if (_trackEndedHandler != null) guildPlayer.TrackEnded -= _trackEndedHandler;
             var msg = await new DiscordMessageBuilder()
                 .AddEmbed(EmbedGenerator.StatusEmbed(EmbedStatusType.StatusInactivity)).SendAsync(ctx.Channel);
+            EventLogger.LogPlayerEvent(ctx.Guild!.Id, PlayerEventType.Disconnect);
             await Task.Delay(10000);
             await msg.DeleteAsync();
         }
 
+        /// <summary>
+        /// Pauses the current track.
+        /// </summary>
+        /// <param name="ctx">The context of the interaction.</param>
         [SlashCommand("pause", "Pause the current track.")]
         public async Task PauseAsync(InteractionContext ctx)
         {
@@ -253,7 +313,7 @@ namespace RadiSharp.Commands
             {
                 await ctx.EditResponseAsync(
                     new DiscordWebhookBuilder().AddEmbed(
-                        EmbedGenerator.ErrorEmbed(EmbedErrorType.ErrLavalinkQueueEmpty)));
+                        EmbedGenerator.ErrorEmbed(EmbedErrorType.ErrQueueEmpty)));
                 return;
             }
 
@@ -264,9 +324,14 @@ namespace RadiSharp.Commands
             }
 
             await guildPlayer.PauseAsync();
+            EventLogger.LogPlayerEvent(ctx.Guild!.Id, PlayerEventType.Pause);
             await ctx.DeleteResponseAsync();
         }
 
+        /// <summary>
+        /// Resumes the current track.
+        /// </summary>
+        /// <param name="ctx">The context of the interaction.</param>
         [SlashCommand("resume", "Resume the current track.")]
         public async Task ResumeAsync(InteractionContext ctx)
         {
@@ -293,7 +358,7 @@ namespace RadiSharp.Commands
             {
                 await ctx.EditResponseAsync(
                     new DiscordWebhookBuilder().AddEmbed(
-                        EmbedGenerator.ErrorEmbed(EmbedErrorType.ErrLavalinkQueueEmpty)));
+                        EmbedGenerator.ErrorEmbed(EmbedErrorType.ErrQueueEmpty)));
                 return;
             }
 
@@ -304,9 +369,14 @@ namespace RadiSharp.Commands
             }
 
             await guildPlayer.ResumeAsync();
+            EventLogger.LogPlayerEvent(ctx.Guild!.Id, PlayerEventType.Resume);
             await ctx.DeleteResponseAsync();
         }
 
+        /// <summary>
+        /// Displays the current queue.
+        /// </summary>
+        /// <param name="ctx">The context of the interaction.</param>
         [SlashCommand("queue", "Display the current queue.")]
         public async Task QueueAsync(InteractionContext ctx)
         {
@@ -333,15 +403,19 @@ namespace RadiSharp.Commands
             {
                 await ctx.EditResponseAsync(
                     new DiscordWebhookBuilder().AddEmbed(
-                        EmbedGenerator.ErrorEmbed(EmbedErrorType.ErrLavalinkQueueEmpty)));
+                        EmbedGenerator.ErrorEmbed(EmbedErrorType.ErrQueueEmpty)));
                 return;
             }
 
             await ctx.EditResponseAsync(new DiscordWebhookBuilder()
-                .AddEmbed(EmbedGenerator.QueueEmbed(_queueManager, guildPlayer))
+                .AddEmbed(EmbedGenerator.QueueEmbed(_queueManager))
                 .AddComponents(EmbedGenerator.QueueComponents(_queueManager)));
         }
 
+        /// <summary>
+        /// Skips the current track.
+        /// </summary>
+        /// <param name="ctx">The context of the interaction.</param>
         [SlashCommand("skip", "Skip the current track.")]
         public async Task SkipAsync(InteractionContext ctx)
         {
@@ -369,7 +443,7 @@ namespace RadiSharp.Commands
             {
                 await ctx.EditResponseAsync(
                     new DiscordWebhookBuilder().AddEmbed(
-                        EmbedGenerator.ErrorEmbed(EmbedErrorType.ErrLavalinkQueueEmpty)));
+                        EmbedGenerator.ErrorEmbed(EmbedErrorType.ErrQueueEmpty)));
                 return;
             }
 
@@ -377,6 +451,10 @@ namespace RadiSharp.Commands
             await ctx.DeleteResponseAsync();
         }
 
+        /// <summary>
+        /// Clears the current queue.
+        /// </summary>
+        /// <param name="ctx">The context of the interaction.</param>
         [SlashCommand("clear", "Clear the current queue.")]
         public async Task ClearAsync(InteractionContext ctx)
         {
@@ -403,7 +481,7 @@ namespace RadiSharp.Commands
             {
                 await ctx.EditResponseAsync(
                     new DiscordWebhookBuilder().AddEmbed(
-                        EmbedGenerator.ErrorEmbed(EmbedErrorType.ErrLavalinkQueueEmpty)));
+                        EmbedGenerator.ErrorEmbed(EmbedErrorType.ErrQueueEmpty)));
                 return;
             }
 
@@ -411,10 +489,15 @@ namespace RadiSharp.Commands
             await guildPlayer.StopAsync();
             await ctx.EditResponseAsync(
                 new DiscordWebhookBuilder().AddEmbed(EmbedGenerator.StatusEmbed(EmbedStatusType.StatusClearQueue)));
+            EventLogger.LogPlayerEvent(ctx.Guild!.Id, PlayerEventType.Clear);
             await Task.Delay(10000);
             await ctx.DeleteResponseAsync();
         }
 
+        /// <summary>
+        /// Plays the previous track.
+        /// </summary>
+        /// <param name="ctx">The context of the interaction.</param>
         [SlashCommand("prev", "Play the previous track.")]
         public async Task PreviousAsync(InteractionContext ctx)
         {
@@ -441,7 +524,7 @@ namespace RadiSharp.Commands
             {
                 await ctx.EditResponseAsync(
                     new DiscordWebhookBuilder().AddEmbed(
-                        EmbedGenerator.ErrorEmbed(EmbedErrorType.ErrLavalinkQueueEmpty)));
+                        EmbedGenerator.ErrorEmbed(EmbedErrorType.ErrQueueEmpty)));
                 return;
             }
 
@@ -449,6 +532,10 @@ namespace RadiSharp.Commands
             await ctx.DeleteResponseAsync();
         }
 
+        /// <summary>
+        /// Loops the current track.
+        /// </summary>
+        /// <param name="ctx">The context of the interaction.</param>
         [SlashCommand("loop", "Loop the current track.")]
         public async Task LoopAsync(InteractionContext ctx)
         {
@@ -475,7 +562,7 @@ namespace RadiSharp.Commands
             {
                 await ctx.EditResponseAsync(
                     new DiscordWebhookBuilder().AddEmbed(
-                        EmbedGenerator.ErrorEmbed(EmbedErrorType.ErrLavalinkQueueEmpty)));
+                        EmbedGenerator.ErrorEmbed(EmbedErrorType.ErrQueueEmpty)));
                 return;
             }
 
@@ -483,8 +570,13 @@ namespace RadiSharp.Commands
             await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
                 .WithTitle($"🔂 Loop {(_queueManager.Loop ? "Enabled" : "Disabled")}")
                 .WithColor(DiscordColor.Green)));
+            EventLogger.LogPlayerEvent(ctx.Guild!.Id, PlayerEventType.Loop, [_queueManager.Loop ? "Enabled" : "Disabled"]);
         }
 
+        /// <summary>
+        /// Shuffles the current queue.
+        /// </summary>
+        /// <param name="ctx">The context of the interaction.</param>
         [SlashCommand("shuffle", "Shuffle the current queue.")]
         public async Task ShuffleAsync(InteractionContext ctx)
         {
@@ -511,7 +603,7 @@ namespace RadiSharp.Commands
             {
                 await ctx.EditResponseAsync(
                     new DiscordWebhookBuilder().AddEmbed(
-                        EmbedGenerator.ErrorEmbed(EmbedErrorType.ErrLavalinkQueueEmpty)));
+                        EmbedGenerator.ErrorEmbed(EmbedErrorType.ErrQueueEmpty)));
                 return;
             }
 
@@ -519,8 +611,13 @@ namespace RadiSharp.Commands
             await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
                 .WithTitle($"🔀 Shuffle {(_queueManager.Shuffle ? "Enabled" : "Disabled")}")
                 .WithColor(DiscordColor.Green)));
+            EventLogger.LogPlayerEvent(ctx.Guild!.Id, PlayerEventType.Shuffle, [_queueManager.Shuffle ? "Enabled" : "Disabled"]);
         }
 
+        /// <summary>
+        /// Loops the current queue.
+        /// </summary>
+        /// <param name="ctx">The context of the interaction.</param>
         [SlashCommand("loopq", "Loop the current queue.")]
         public async Task LoopQueueAsync(InteractionContext ctx)
         {
@@ -547,7 +644,7 @@ namespace RadiSharp.Commands
             {
                 await ctx.EditResponseAsync(
                     new DiscordWebhookBuilder().AddEmbed(
-                        EmbedGenerator.ErrorEmbed(EmbedErrorType.ErrLavalinkQueueEmpty)));
+                        EmbedGenerator.ErrorEmbed(EmbedErrorType.ErrQueueEmpty)));
                 return;
             }
 
@@ -555,11 +652,18 @@ namespace RadiSharp.Commands
             await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(new DiscordEmbedBuilder()
                 .WithTitle($"🔁 Loop Queue {(_queueManager.LoopQueue ? "Enabled" : "Disabled")}")
                 .WithColor(DiscordColor.Green)));
+            EventLogger.LogPlayerEvent(ctx.Guild!.Id, PlayerEventType.LoopQueue, [_queueManager.LoopQueue ? "Enabled" : "Disabled"]);
         }
 
+        /// <summary>
+        /// Removes a track from the queue.
+        /// </summary>
+        /// <param name="ctx">The context of the interaction.</param>
+        /// <param name="index">The index of the track to remove.</param>
         [SlashCommand("remove", "Remove a track from the queue.")]
         public async Task RemoveAsync(InteractionContext ctx,
-            [Option("index", "The index of the track to remove.")] int index)
+            [Option("index", "The index of the track to remove.")]
+            int index)
         {
             await ctx.CreateResponseAsync(InteractionResponseType.DeferredChannelMessageWithSource);
             if (ctx.Member?.VoiceState?.Channel is null)
@@ -584,7 +688,7 @@ namespace RadiSharp.Commands
             {
                 await ctx.EditResponseAsync(
                     new DiscordWebhookBuilder().AddEmbed(
-                        EmbedGenerator.ErrorEmbed(EmbedErrorType.ErrLavalinkQueueEmpty)));
+                        EmbedGenerator.ErrorEmbed(EmbedErrorType.ErrQueueEmpty)));
                 return;
             }
 
@@ -599,12 +703,21 @@ namespace RadiSharp.Commands
             _queueManager.Remove(index);
             await ctx.EditResponseAsync(new DiscordWebhookBuilder()
                 .AddEmbed(EmbedGenerator.RemoveTrackEmbed(track!)));
+            EventLogger.LogPlayerEvent(ctx.Guild!.Id, PlayerEventType.Remove, [track!.Track.Info.Title]);
         }
 
+        /// <summary>
+        /// Moves a track in the queue.
+        /// </summary>
+        /// <param name="ctx">The context of the interaction.</param>
+        /// <param name="from">The index of the track to move.</param>
+        /// <param name="to">The index to move the track to.</param>
         [SlashCommand("move", "Move a track in the queue.")]
         public async Task MoveAsync(InteractionContext ctx,
-            [Option("from", "The index of the track to move.")] int from,
-            [Option("to", "The index to move the track to.")] int to)
+            [Option("from", "The index of the track to move.")]
+            int from,
+            [Option("to", "The index to move the track to.")]
+            int to)
         {
             await ctx.CreateResponseAsync(InteractionResponseType.DeferredChannelMessageWithSource);
             if (ctx.Member?.VoiceState?.Channel is null)
@@ -629,7 +742,7 @@ namespace RadiSharp.Commands
             {
                 await ctx.EditResponseAsync(
                     new DiscordWebhookBuilder().AddEmbed(
-                        EmbedGenerator.ErrorEmbed(EmbedErrorType.ErrLavalinkQueueEmpty)));
+                        EmbedGenerator.ErrorEmbed(EmbedErrorType.ErrQueueEmpty)));
                 return;
             }
 
@@ -645,11 +758,18 @@ namespace RadiSharp.Commands
                 .WithTitle("📝 Moved in Queue")
                 .WithDescription($"Moved track from index {from} to index {to}.")
                 .WithColor(DiscordColor.Green)));
+            EventLogger.LogPlayerEvent(ctx.Guild!.Id, PlayerEventType.Move, [$"{from}", $"{to}"]);
         }
 
+        /// <summary>
+        /// Skips to a specific track in the queue.
+        /// </summary>
+        /// <param name="ctx">The context of the interaction.</param>
+        /// <param name="index">The index of the track to skip to.</param>
         [SlashCommand("skipto", "Skip to a specific track in the queue.")]
         public async Task SkipToAsync(InteractionContext ctx,
-            [Option("index", "The index of the track to skip to.")] int index)
+            [Option("index", "The index of the track to skip to.")]
+            int index)
         {
             await ctx.CreateResponseAsync(InteractionResponseType.DeferredChannelMessageWithSource);
             if (ctx.Member?.VoiceState?.Channel is null)
@@ -674,7 +794,7 @@ namespace RadiSharp.Commands
             {
                 await ctx.EditResponseAsync(
                     new DiscordWebhookBuilder().AddEmbed(
-                        EmbedGenerator.ErrorEmbed(EmbedErrorType.ErrLavalinkQueueEmpty)));
+                        EmbedGenerator.ErrorEmbed(EmbedErrorType.ErrQueueEmpty)));
                 return;
             }
 
@@ -688,12 +808,34 @@ namespace RadiSharp.Commands
             await ctx.DeleteResponseAsync();
         }
 
+        /// <summary>
+        /// Disconnects from the voice channel.
+        /// </summary>
+        /// <param name="ctx">The context of the interaction.</param>
+        /// <remarks>
+        /// Many music bots have this as a (sometimes undocumented) alias for their Stop/Leave commands.
+        /// Unfortunately, the introduction of slash commands to Discord made the use of traditional prefixed commands
+        /// more and more obsolete, so this command can no longer be easily hidden from plain sight.
+        /// It is still being kept here as a little easter egg.
+        /// </remarks>
         [SlashCommand("fuckoff", "Leave the voice channel.")]
         public async Task LeaveAsync(InteractionContext ctx)
         {
             await StopAsync(ctx);
         }
 
+        /// <summary>
+        /// Starts a YouTube search and displays the results. The user can then choose one of the
+        /// results to be added to the queue.
+        /// </summary>
+        /// <param name="ctx">The context of the interaction.</param>
+        /// <param name="query">The query to search for.</param>
+        /// <remarks>
+        /// This command requires the "Message Content" Privileged Intent to be enabled,
+        /// as it needs to directly access user messages in order to queue a search result.
+        /// Bots that are members to 100+ guilds require whitelisting by Discord Staff
+        /// to continue using Privileged Intents.
+        /// </remarks>
         [SlashCommand("search", "Search YouTube videos and optionally pick one to queue.")]
         public async Task SearchAsync(InteractionContext ctx,
             [Option("query", "The query to search for.")]
@@ -711,12 +853,13 @@ namespace RadiSharp.Commands
             }
 
             await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(EmbedGenerator.SearchEmbed(search)));
+            EventLogger.LogPlayerEvent(ctx.Guild!.Id, PlayerEventType.Search, [query, $"{search.Results.Count}"]);
 
             var interactivity = ctx.Client.GetInteractivity();
             var result = interactivity.WaitForMessageAsync(x => x.Author.Id == ctx.UserId);
             if (!result.Result.TimedOut)
             {
-                if(Int32.TryParse(result.Result.Result.Content, out int index))
+                if (Int32.TryParse(result.Result.Result.Content, out int index))
                 {
                     if (index > 0 && index <= videos.Count)
                     {
@@ -725,31 +868,44 @@ namespace RadiSharp.Commands
                     }
                     else
                     {
-                        await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(EmbedGenerator.ErrorEmbed(EmbedErrorType.ErrIndexOutOfRange)));
+                        await ctx.EditResponseAsync(
+                            new DiscordWebhookBuilder().AddEmbed(
+                                EmbedGenerator.ErrorEmbed(EmbedErrorType.ErrIndexOutOfRange)));
                     }
                 }
                 else
                 {
-                    await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(EmbedGenerator.ErrorEmbed(EmbedErrorType.ErrInvalidArg)));
+                    await ctx.EditResponseAsync(
+                        new DiscordWebhookBuilder().AddEmbed(EmbedGenerator.ErrorEmbed(EmbedErrorType.ErrInvalidArg)));
                 }
             }
-
         }
 
         #region Event Handlers
-        
+
+        /// <summary>
+        /// Event handler wrapper for when playback has started.
+        /// </summary>
+        /// <param name="ctx">The context of the interaction.</param>
+        /// <returns>The event handler for the LavalinkTrackStarted event.</returns>
         private AsyncEventHandler<LavalinkGuildPlayer, LavalinkTrackStartedEventArgs> CreateTrackStartedHandler(
             InteractionContext ctx)
         {
-            return async (_, _) =>
+            return async (_, e) =>
             {
                 await new DiscordMessageBuilder()
                     .AddEmbed(EmbedGenerator.PlayerEmbed(_queueManager))
                     .AddComponents(EmbedGenerator.PlayerComponents(_queueManager))
                     .SendAsync(ctx.Channel);
+                EventLogger.LogPlayerEvent(ctx.Guild!.Id, PlayerEventType.Play, [$"{e.Track.Info.Title} ({e.Track.Info.Uri})"]);
             };
         }
 
+        /// <summary>
+        /// Event handler wrapper for when playback has ended.
+        /// </summary>
+        /// <param name="ctx">The context of the interaction.</param>
+        /// <returns>The event handler for the LavalinkTrackEnded event.</returns>
         private AsyncEventHandler<LavalinkGuildPlayer, LavalinkTrackEndedEventArgs> CreateTrackEndedHandler(
             InteractionContext ctx)
         {
@@ -773,6 +929,7 @@ namespace RadiSharp.Commands
                         await new DiscordMessageBuilder()
                             .AddEmbed(EmbedGenerator.ErrorEmbed(EmbedErrorType.ErrLavalinkLoadFailed))
                             .SendAsync(ctx.Channel);
+                        EventLogger.LogPlayerEvent(ctx.Guild!.Id, PlayerEventType.Error, ["ERR_LAVALINK_LOAD_FAILED", $"Failed to load track {e.Track.Info.Title} ({e.Track.Info.Uri})"]);
                         _queueManager.IsPlaying = true;
                         await guildPlayer!.PlayAsync(_queueManager.Next()!.Track);
                         break;
@@ -785,6 +942,7 @@ namespace RadiSharp.Commands
                             var msg = await new DiscordMessageBuilder()
                                 .AddEmbed(EmbedGenerator.StatusEmbed(EmbedStatusType.StatusQueueEnd))
                                 .SendAsync(ctx.Channel);
+                            EventLogger.LogPlayerEvent(ctx.Guild!.Id, PlayerEventType.Stop);
                             await Task.Delay(10000);
                             await msg.DeleteAsync();
                         }
@@ -798,9 +956,15 @@ namespace RadiSharp.Commands
                 }
             };
         }
-        
+
         #endregion
-        
+
+        /// <summary>
+        /// Overrides the behavior after a slash command has been executed.
+        /// This is for handling the internal call flag.
+        /// </summary>
+        /// <param name="ctx">The context of the interaction.</param>
+        /// <returns>The successfully completed Task.</returns>
         public override Task<bool> AfterSlashExecutionAsync(InteractionContext ctx)
         {
             if (_internalCall)

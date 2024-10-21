@@ -1,5 +1,8 @@
 ﻿namespace RadiSharp.Typedefs;
 
+/// <summary>
+/// Defines a specific status type for the embed.
+/// </summary>
 public enum EmbedStatusType
 {
     StatusUnknown,                  // Unknown status

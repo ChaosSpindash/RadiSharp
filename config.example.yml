@@ -1,20 +1,30 @@
-# Example config file for RadiSharp
-# Edit this file as needed and rename it to config.yaml
+﻿# Example config file for RadiSharp
+# Edit this file as needed and rename it to config.yml
 
-# Bot Token
-token: "your token here"
-# Bot Status
-# - Activity Type: 0 = Playing, 1 = Streaming, 2 = Listening To, 3 = Watching, 4 = Custom, 5 = Competing
-# - Status: 0 = Offline, 1 = Online, 2 = Idle, 4 = Do Not Disturb, 5 = Invisible, 6 = Streaming
-activityType: 2
-activityName: "Dustbowle Radio"
-status: 1
-
-# Guild ID (for testing)
-guildID: 000000000000000000
-
-# Lavalink Server
-lavalinkHost: "localhost"
-lavalinkPort: 2333
-lavalinkPass: "youshallnotpass"
-lavalinkSsl: false
+botSettings:
+  # Bot Token, obtained from Discord Developer Portal
+  token: "your token here"
+  # Bot Activity/Status
+  activity:
+    # 0 = Playing, 1 = Streaming, 2 = Listening To, 3 = Watching, 4 = Custom, 5 = Competing
+    type: 2
+    name: "Dustbowle Radio"
+    # 0 = Offline, 1 = Online, 2 = Idle, 4 = Do Not Disturb, 5 = Invisible, 6 = Streaming
+    status: 1
+  # Guild ID for guild commands, ignored if globalCommands is enabled
+  guildID: 000000000000000000
+  # Enable/Disable Global Commands
+  # Note: Global commands can only be updated every hour
+  globalCommands: false
+  
+lavalinkSettings:
+  # Time in milliseconds before retrying to connect to Lavalink (1000 = 1 second)
+  timeout: 30000
+  # List of Lavalink nodes
+  # Set secure to true if node uses SSL
+  nodes:
+    -
+      host: "localhost"
+      port: 2333
+      pass: "youshallnotpass"
+      secure: false

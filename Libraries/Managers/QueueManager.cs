@@ -2,22 +2,58 @@
 
 namespace RadiSharp.Libraries.Managers;
 
+/// <summary>
+/// Manages the queue for the Lavalink player.
+/// </summary>
 public class QueueManager
 {
+    /// <summary>
+    /// The current instance of <c>QueueManager</c>. Only one instance can exist at a time.
+    /// </summary>
     public static QueueManager Instance { get; } = new();
 
-    private readonly List<RadiTrack> _playlist = [];
+    // ReSharper disable once FieldCanBeMadeReadOnly.Local
+    /// <summary>
+    /// Contains the queued tracks in sequential order.
+    /// </summary>
+    private List<RadiTrack> _playlist = [];
+    /// <summary>
+    /// Contains the queued tracks in shuffled order.
+    /// </summary>
     private List<RadiTrack> _shuffledPlaylist = [];
+    /// <summary>
+    /// The index of the current track in the playlist.
+    /// </summary>
     private int _playlistIndex = -1;
+    /// <summary>
+    /// If true, the queue will loop when it reaches the end.
+    /// </summary>
     public bool LoopQueue { get; private set; }
+    /// <summary>
+    /// If true, the queue is shuffled.
+    /// </summary>
     public bool Shuffle { get; private set; }
+    /// <summary>
+    /// If true, the current track will loop.
+    /// </summary>
     public bool Loop { get; private set; }
-
+    /// <summary>
+    /// Defines the current state of the player.
+    /// </summary>
     public bool IsPlaying { get; set; }
-
+    /// <summary>
+    /// The index of the current page in the playlist.
+    /// </summary>
     public int PageCurrent { get; set; }
+    /// <summary>
+    /// The total number of pages in the playlist. One page contains up to 10 tracks.
+    /// </summary>
     public int PageCount { get; private set; }
-
+    
+    /// <summary>
+    /// Adds a track to the queue.
+    /// </summary>
+    /// <param name="track">The track to add to the queue.</param>
     public void Add(RadiTrack track)
     {
         _playlist.Add(track);
@@ -27,7 +63,10 @@ public class QueueManager
             _shuffledPlaylist.Add(track);
         }
     }
-
+    /// <summary>
+    /// Adds a playlist to the queue.
+    /// </summary>
+    /// <param name="playlist">The playlist to add to the queue.</param>
     public void AddPlaylist(RadiPlaylist playlist)
     {
         foreach (RadiTrack track in playlist.Tracks)
@@ -35,7 +74,11 @@ public class QueueManager
             Add(track);
         }
     }
-
+    
+    /// <summary>
+    /// Removes a track from the queue.
+    /// </summary>
+    /// <param name="index">The index of the track to remove from the queue.</param>
     public void Remove(int index)
     {
         List<RadiTrack> playlist;
@@ -65,6 +108,9 @@ public class QueueManager
             Next(true);
         }
     }
+    /// <summary>
+    /// Clears the queue.
+    /// </summary>
     public void Clear()
     {
         // Clear the playlist (including shuffle playlist) and reset the index
@@ -77,6 +123,16 @@ public class QueueManager
         Loop = false;
         IsPlaying = false;
     }
+    /// <summary>
+    /// Returns the next track in the queue.
+    /// </summary>
+    /// <param name="skip">Determines whether the track was skipped manually.</param>
+    /// <returns>
+    /// <list type="bullet">
+    /// <item>The next track to play in the queue.</item>
+    /// <item><c>null</c>, if the queue is empty OR has reached the end and <c>LoopQueue</c> is false.</item>
+    /// </list>
+    /// </returns>
     public RadiTrack? Next(bool skip = false)
     {
         // Determine which playlist to use based on the shuffle setting
@@ -111,7 +167,12 @@ public class QueueManager
         // Return the next track
         return playlist[_playlistIndex];
     }
-
+    
+    /// <summary>
+    /// Skips to the specified track in the queue.
+    /// </summary>
+    /// <param name="index">The index of the track to skip to.</param>
+    /// <returns>The track to skip to.</returns>
     public RadiTrack? SkipTo(int index)
     {
         // Determine which playlist to use based on the shuffle setting
@@ -126,7 +187,11 @@ public class QueueManager
         // Return the new track
         return playlist[_playlistIndex];
     }
-
+    /// <summary>
+    /// Moves a track in the queue from one index to another.
+    /// </summary>
+    /// <param name="from">The index of the track to move.</param>
+    /// <param name="to">The index to move the track to.</param>
     public void Move(int from, int to)
     {
         // First check if the shuffle setting is enabled
@@ -162,7 +227,11 @@ public class QueueManager
             _playlistIndex++;
         }
     }
-
+    
+    /// <summary>
+    /// Returns the previous track in the queue.
+    /// </summary>
+    /// <returns>The track before the current playlist index.</returns>
     public RadiTrack? Previous()
     {
         // Determine which playlist to use based on the shuffle setting
@@ -182,8 +251,14 @@ public class QueueManager
         // Return the previous track
         return playlist[_playlistIndex];
     }
-
+    
+    /// <summary>
+    /// Toggles the Loop Queue setting.
+    /// </summary>
     public void ToggleLoopQueue() => LoopQueue = !LoopQueue;
+    /// <summary>
+    /// Toggles the Shuffle setting.
+    /// </summary>
     public void ToggleShuffle()
     {
         Shuffle = !Shuffle;
@@ -203,8 +278,15 @@ public class QueueManager
             _shuffledPlaylist.Clear();
         }
     }
+    /// <summary>
+    /// Toggles the Loop setting.
+    /// </summary>
     public void ToggleLoop() => Loop = !Loop;
-
+    
+    /// <summary>
+    /// Returns the current track in the queue.
+    /// </summary>
+    /// <returns>The current track.</returns>
     public RadiTrack? CurrentTrack()
     {
         // If the playlist index is out of bounds, return null
@@ -217,7 +299,12 @@ public class QueueManager
         // Return the current track
         return playlist[_playlistIndex];
     }
-
+    
+    /// <summary>
+    /// Returns the track at the specified index in the queue.
+    /// </summary>
+    /// <param name="index">The index of the track.</param>
+    /// <returns>The track at the selected index.</returns>
     public RadiTrack? GetTrack(int index)
     {
         // Determine which playlist to use based on the shuffle setting
@@ -230,12 +317,23 @@ public class QueueManager
         // Return the track at the specified index
         return playlist[index - 1];
     }
-
+    
+    /// <summary>
+    /// Returns the number of tracks in the queue.
+    /// </summary>
+    /// <returns>The total number of tracks in the queue.</returns>
     public int PlaylistCount() => _playlist.Count;
-
-    // Method to return the queue in a paginated format (10 tracks per page)
-    // Includes the track duration and the user who requested the track
-    // Mark the current track as bold
+    
+    /// <summary>
+    /// Returns the queue in a paginated format.
+    /// </summary>
+    /// <param name="page">The page to return. If 0, selects the page containing the current track.</param>
+    /// <returns>The formatted content of the selected queue page.</returns>
+    /// <remarks>
+    /// Each page contains up to 10 tracks. The text is formatted with the current track in bold.
+    /// Along with the title, each track includes the author, duration, and the user who requested it.
+    /// The text is intended to be used as a description in an embed. 
+    /// </remarks>
     public string GetPlaylist(int page = 0)
     {
         // Determine which playlist to use based on the shuffle setting
@@ -274,7 +372,10 @@ public class QueueManager
         return sb.ToString();
     }
 
-    // Method to return the total duration of the playlist
+    /// <summary>
+    /// Returns the total duration of the queue.
+    /// </summary>
+    /// <returns>The total duration of all tracks in the queue.</returns>
     public TimeSpan PlaylistDuration()
     {
         // Determine which playlist to use based on the shuffle setting
@@ -289,15 +390,16 @@ public class QueueManager
         // Return the total duration
         return duration;
     }
-        
+    
+    /// <summary>
+    /// Returns the formatted duration of a track. Leading zeros are omitted.
+    /// </summary>
+    /// <param name="duration">The track duration to be formatted.</param>
+    /// <returns>The formatted duration.</returns>
     public static string FormatDuration(TimeSpan duration)
     {
         // If the duration is less than 1 hour, return the minutes and seconds
-        if (duration.Hours == 0)
-        {
-            return duration.ToString(@"m\:ss");
-        }
         // Otherwise, return the hours, minutes, and seconds
-        return duration.ToString(@"h\:mm\:ss");
+        return duration.ToString(duration.Hours == 0 ? @"m\:ss" : @"h\:mm\:ss");
     }
 }

@@ -2,11 +2,11 @@
 using DisCatSharp.Entities;
 using DisCatSharp.Interactivity;
 using DisCatSharp.Interactivity.Extensions;
-using DisCatSharp.Net;
-using DisCatSharp.Lavalink;
 using RadiSharp.Commands;
 using Microsoft.Extensions.Logging;
-using RadiSharp.Libraries;
+using RadiSharp.Libraries.Managers;
+using RadiSharp.Libraries.Utilities;
+using RadiSharp.Typedefs;
 using Serilog;
 
 namespace RadiSharp
@@ -19,7 +19,10 @@ namespace RadiSharp
             // Start the main bot loop
             MainAsync().GetAwaiter().GetResult();
         }
-
+        
+        /// <summary>
+        /// The main bot loop.
+        /// </summary>
         static async Task MainAsync()
         {
             // Initialize the logger
@@ -49,17 +52,17 @@ namespace RadiSharp
             try
             {
 #if DEBUG
-                yamlConfig = yamlDeserializer.Deserialize<YamlConfig>(await File.ReadAllTextAsync("config.canary.yaml"));
+                yamlConfig = yamlDeserializer.Deserialize<YamlConfig>(await File.ReadAllTextAsync("config.canary.yml"));
 #else
-                yamlConfig = yamlDeserializer.Deserialize<YamlConfig>(await File.ReadAllTextAsync("config.yaml"));
+                yamlConfig = yamlDeserializer.Deserialize<YamlConfig>(await File.ReadAllTextAsync("config.yml"));
 #endif
             }
             catch (Exception ex)
             {
 #if DEBUG
-                Log.Logger.Fatal($"Could not load config.canary.yaml - Abort.\n{ex}");
+                Log.Logger.Fatal($"Could not load config.canary.yml - Abort.\n{ex}");
 #else
-                Log.Logger.Fatal($"Could not load config.yaml - Abort.\n{ex}");
+                Log.Logger.Fatal($"Could not load config.yml - Abort.\n{ex}");
 #endif
                 await Task.Delay(5000);
                 Environment.ExitCode = 2;
@@ -70,7 +73,7 @@ namespace RadiSharp
             // Initialize the bot
             var discord = new DiscordClient(new DiscordConfiguration()
             {
-                Token = yamlConfig.Token,
+                Token = yamlConfig.BotSettings.Token,
                 TokenType = TokenType.Bot,
                 Intents = DiscordIntents.AllUnprivileged | DiscordIntents.MessageContent,
                 LoggerFactory = loggerFactory
@@ -82,37 +85,29 @@ namespace RadiSharp
             });
 
             // Initialize the Lavalink config
-            var endpoint = new ConnectionEndpoint(yamlConfig.LavalinkHost, yamlConfig.LavalinkPort, yamlConfig.LavalinkSsl);
-            var lavalinkConfig = new LavalinkConfiguration
-            {
-                Password = yamlConfig.LavalinkPass,
-                RestEndpoint = endpoint,
-                SocketEndpoint = endpoint
-            };
-
-            var lavalink = discord.UseLavalink();
+            var nodeManager = new NodeManager(discord, yamlConfig.LavalinkSettings);
 
             // Register the slash commands
             // NOTE: Global commands only update every hour, so it's recommended to use guild commands during development
             var appCommands = discord.UseApplicationCommands();
-
-            appCommands.RegisterGuildCommands<RadiSlashCommands>(yamlConfig.GuildId);
-            appCommands.RegisterGuildCommands<PlayerCommands>(yamlConfig.GuildId);
+            
+            if (yamlConfig.BotSettings.GlobalCommands)
+            {
+                appCommands.RegisterGlobalCommands<RadiSlashCommands>();
+                appCommands.RegisterGlobalCommands<PlayerCommands>();
+            }
+            else
+            {
+                appCommands.RegisterGuildCommands<RadiSlashCommands>(yamlConfig.BotSettings.GuildId);
+                appCommands.RegisterGuildCommands<PlayerCommands>(yamlConfig.BotSettings.GuildId);
+            }
             
             // Register the event handlers
             discord.RegisterEventHandler<EmbedButtons>();
 
             // Connect to Discord and Lavalink node
-            await discord.ConnectAsync(new DiscordActivity(yamlConfig.ActivityName, yamlConfig.ActivityType), yamlConfig.Status);
-            try
-            {
-                await lavalink.ConnectAsync(lavalinkConfig);
-                Log.Logger.Information($"Lavalink Node [{yamlConfig.LavalinkHost}:{yamlConfig.LavalinkPort}] - Connected.");
-            }
-            catch (Exception ex)
-            {
-                Log.Logger.Error($"Lavalink Node [{yamlConfig.LavalinkHost}:{yamlConfig.LavalinkPort}] - Connection Failed.\n{ex}");
-            }
+            await discord.ConnectAsync(new DiscordActivity(yamlConfig.BotSettings.Activity.Name, yamlConfig.BotSettings.Activity.Type), yamlConfig.BotSettings.Activity.Status);
+            await nodeManager.Connect();
             await Task.Delay(-1); // Prevent the bot from exiting
         }
     }
