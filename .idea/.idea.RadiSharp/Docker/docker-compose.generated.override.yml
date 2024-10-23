@@ -1,0 +1,21 @@
+# This is a generated file. Not intended for manual editing.
+services:
+  radisharp:
+    build:
+      context: "C:\\Users\\chaos\\RiderProjects\\RadiSharp"
+      dockerfile: "Dockerfile"
+      target: "base"
+    command: []
+    entrypoint:
+    - "dotnet"
+    - "/app/bin/Debug/net9.0/RadiSharp.dll"
+    environment:
+      DOTNET_ENVIRONMENT: "Development"
+      DOTNET_USE_POLLING_FILE_WATCHER: "true"
+    image: "radisharp:dev"
+    ports: []
+    volumes:
+    - "C:\\Users\\chaos\\.nuget\\packages:/root/.nuget/packages"
+    - "C:\\Users\\chaos\\RiderProjects\\RadiSharp:/app:rw"
+    - "C:\\Users\\chaos\\RiderProjects\\RadiSharp:/src:rw"
+    working_dir: "/app"

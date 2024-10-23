@@ -106,7 +106,9 @@ namespace RadiSharp
             discord.RegisterEventHandler<EmbedButtons>();
 
             // Connect to Discord and Lavalink node
+            // For Docker deployments, wait 5 seconds before connecting to Lavalink to ensure the container is ready
             await discord.ConnectAsync(new DiscordActivity(yamlConfig.BotSettings.Activity.Name, yamlConfig.BotSettings.Activity.Type), yamlConfig.BotSettings.Activity.Status);
+            await Task.Delay(5000);
             await nodeManager.Connect();
             await Task.Delay(-1); // Prevent the bot from exiting
         }

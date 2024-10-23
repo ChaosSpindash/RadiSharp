@@ -21,8 +21,15 @@ lavalinkSettings:
   # Time in milliseconds before retrying to connect to Lavalink (1000 = 1 second)
   timeout: 30000
   # List of Lavalink nodes
-  # Set secure to true if node uses SSL
+  # If deployed with Docker, use the hostname of the Lavalink container (e.g. lavalink.radi.docker)
   nodes:
+    # Docker node example
+    -     
+      host: "lavalink.radi.docker"
+      port: 2333
+      pass: "Welc_meToDustbowleRadio"
+      secure: false
+    # Non-Docker node example
     -
       host: "localhost"
       port: 2333

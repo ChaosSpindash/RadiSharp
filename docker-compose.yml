@@ -1,0 +1,34 @@
+﻿name: radisharp
+
+services:
+  radisharp:
+    container_name: radisharp
+    user: root
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    hostname: bot.radi.docker
+    volumes:
+      - ./config.yml:/app/config.yml
+    networks:
+      - lavalink
+    depends_on:
+      - lavalink
+  
+  lavalink:
+    container_name: lavalink
+    image: ghcr.io/lavalink-devs/lavalink:4
+    restart: unless-stopped
+    hostname: lavalink.radi.docker
+    volumes:
+        - ./Lavalink/application.yml:/opt/Lavalink/application.yml
+        - ./Lavalink/plugins:/opt/Lavalink/plugins
+    networks:
+      - lavalink
+    expose:
+        - 2333
+          
+networks:
+  lavalink:
+    driver: bridge
