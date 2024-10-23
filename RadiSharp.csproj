@@ -16,7 +16,6 @@
     <PackageReference Include="DisCatSharp.ApplicationCommands" Version="10.6.6-nightly-018" />
     <PackageReference Include="DisCatSharp.Common" Version="10.6.6-nightly-018" />
     <PackageReference Include="DisCatSharp.Interactivity" Version="10.6.6-nightly-018" />
-    <PackageReference Include="DisCatSharp.Lavalink" Version="10.6.6-nightly-018" />
     <PackageReference Include="DisCatSharp.VoiceNext" Version="10.6.6-nightly-018" />
     <PackageReference Include="Serilog" Version="4.1.0-dev-02238" />
     <PackageReference Include="Serilog.Extensions.Logging" Version="8.0.1-dev-10398" />
@@ -41,6 +40,12 @@
     <None Update="config.canary.yml">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="DisCatSharp.Lavalink">
+      <HintPath>Libraries\DisCatSharp.Lavalink.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
 </Project>

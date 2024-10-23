@@ -10,6 +10,7 @@ using DisCatSharp.Lavalink.Enums;
 using DisCatSharp.Lavalink.EventArgs;
 using RadiSharp.Libraries;
 using RadiSharp.Libraries.Managers;
+using RadiSharp.Libraries.Providers;
 using RadiSharp.Libraries.Utilities;
 using RadiSharp.Typedefs;
 using YTSearch.NET;
@@ -78,7 +79,7 @@ namespace RadiSharp.Commands
         /// <param name="ctx">The context of the interaction.</param>
         /// <param name="query">The query to search for.</param>
         [SlashCommand("play", "Play a track from a URL or search query.")]
-        public async Task PlayAsync(InteractionContext ctx, [Option("query", "The query to search for.")] string? query)
+        public async Task PlayAsync(InteractionContext ctx, [Autocomplete(typeof(SearchAutocompleteProvider))] [Option("query", "The query to search for.", true)] string? query)
         {
             if (!_internalCall)
                 await ctx.CreateResponseAsync(InteractionResponseType.DeferredChannelMessageWithSource);
