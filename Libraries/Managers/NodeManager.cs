@@ -24,7 +24,7 @@ public class NodeManager
     /// <summary>
     /// The list of Lavalink configurations for each node.
     /// </summary>
-    private List<LavalinkConfiguration> Configurations { get; set; } = new();
+    private List<LavalinkConfiguration> Configurations { get; set; } = [];
 
     /// <summary>
     /// The number of nodes in the list.
@@ -34,28 +34,33 @@ public class NodeManager
     /// <summary>
     /// The index of the current node being connected to.
     /// </summary>
-    private int _currentNode;
+    private int CurrentNode { get; set; }
 
     /// <summary>
     /// The timeout in milliseconds before retrying to connect to a node.
     /// </summary>
-    private readonly int _timeout;
+    private int Timeout { get; }
 
     /// <summary>
     /// The amount of full node rotations without a successful connection.
     /// </summary>
-    private int _fullRetryCount = 0;
+    private int FullRetryCount { get; set; }
 
     /// <summary>
     /// The maximum amount of full node rotations without a successful connection.
     /// If this limit is reached, no further connection attempts will be made.
     /// </summary>
-    private readonly int _maxFullRetries = 3;
+    private int MaxFullRetries { get; } = 3;
 
     /// <summary>
     /// The Discord client to get the Lavalink client from.
     /// </summary>
     private DiscordClient Client { get; set; }
+    
+    /// <summary>
+    /// The Lavalink extension of the Discord client.
+    /// </summary>
+    private LavalinkExtension Lavalink { get; set; }
 
     /// <summary>
     /// Instantiates a new NodeManager. Only one instance can exist at a time.
@@ -66,11 +71,11 @@ public class NodeManager
     {
         // Import the Discord client and Lavalink settings
         Client = discord;
-        _timeout = lavalink.Timeout;
+        Timeout = lavalink.Timeout;
         Nodes = lavalink.Nodes;
 
         // Initialize the Lavalink client
-        Client.UseLavalink();
+        Lavalink = Client.UseLavalink();
 
         // Create a Lavalink configuration for each node
         foreach (LavalinkNode node in Nodes)
@@ -80,13 +85,16 @@ public class NodeManager
             {
                 Password = node.Pass,
                 RestEndpoint = endpoint,
-                SocketEndpoint = endpoint
+                SocketEndpoint = endpoint,
+#if DEBUG
+                EnableTrace = true
+#endif
             };
             Configurations.Add(lavalinkConfig);
         }
 
         // Register the event handler for connection loss
-        Client.GetLavalink().SessionDisconnected += ConnectionLostEventHandler;
+        Lavalink.SessionDisconnected += ConnectionLostEventHandler;
 
         // Set this as the current instance
         Instance = this;
@@ -108,53 +116,53 @@ public class NodeManager
         // If no nodes are found, log an error and return
         if (NodeCount == 0)
         {
-            Log.Logger.Error("No nodes found in the configuration file.");
+            Log.Logger.Error("ERR_CFG_NO_NODES_FOUND: No nodes found in the configuration file.");
             return;
         }
 
         // If the current node index exceeds the number of nodes, reset it
-        if (_currentNode >= NodeCount)
+        if (CurrentNode >= NodeCount)
         {
-            _currentNode = 0;
+            CurrentNode = 0;
         }
 
-        // Get the Lavalink client
-        var lavalink = Client.GetLavalink();
-
+        Lavalink = Client.GetLavalink();
+        
         // Attempt to connect to the current node
         try
         {
-            await lavalink.ConnectAsync(Configurations[_currentNode]);
+            await Lavalink.ConnectAsync(Configurations[CurrentNode]);
             Log.Logger.Information(
-                $"Connected to Lavalink node [{Nodes[_currentNode].Host}:{Nodes[_currentNode].Host}].");
+                $"Connected to Lavalink node [{Nodes[CurrentNode].Host}:{Nodes[CurrentNode].Port}].");
             // Reset the full rotation count if a successful connection is made
-            _fullRetryCount = 0;
+            FullRetryCount = 0;
+            CurrentNode = CurrentNode;
         }
         // If the connection attempt fails, try the next node in the list
-        catch (Exception)
+        catch (Exception ex)
         {
             Log.Logger.Warning(
-                $"Failed to connect to Lavalink node [{Nodes[_currentNode].Host}:{Nodes[_currentNode].Host}].");
-            if (_currentNode == NodeCount - 1)
+                $"ERR_LAVALINK_CONN_FAILED: {(ex.InnerException is not null ? ex.InnerException.Message : ex.Message)}.");
+            if (CurrentNode == NodeCount - 1)
             {
                 // If the last node in the list is reached, increment the full rotation count
-                _fullRetryCount++;
-                if (_fullRetryCount >= _maxFullRetries)
+                FullRetryCount++;
+                if (FullRetryCount >= MaxFullRetries)
                 {
                     // If the maximum number of full rotations is reached, abort connection attempts
                     // This is to prevent infinite recursion of the method if all nodes are offline
                     Log.Logger.Fatal(
-                        $"Failed to connect to all nodes after {_maxFullRetries} full rotations. Aborting connection attempts.");
+                        $"ERR_LAVALINK_ROTATION_ABORT: Failed to connect to all nodes after {MaxFullRetries} full rotations. Aborting connection attempts.");
                     return;
                 }
 
                 // If a full rotation is made without a successful connection, wait before trying again
                 Log.Logger.Error(
-                    $"Failed to connect to all nodes. Awaiting {_timeout / 1000} seconds before retrying...");
-                await Task.Delay(_timeout);
+                    $"ERR_LAVALINK_ROTATION_TIMEOUT: Failed to connect to all nodes. Awaiting {Timeout / 1000} seconds before retrying...");
+                await Task.Delay(Timeout);
             }
-
-            _currentNode++;
+            // Attempt to connect to the next node in the list
+            CurrentNode++;
             Log.Logger.Warning("Attempting to connect to the next node...");
             await Connect();
         }
@@ -172,13 +180,13 @@ public class NodeManager
         if (e.IsCleanClose)
         {
             Log.Logger.Information(
-                $"Connection to Lavalink node [{Nodes[_currentNode].Host}:{Nodes[_currentNode].Host}] closed.");
+                $"Connection to Lavalink node [{Nodes[CurrentNode].Host}:{Nodes[CurrentNode].Port}] closed.");
         }
         // Otherwise, attempt to reconnect to the node
         else
         {
             Log.Logger.Warning(
-                $"Connection to Lavalink node [{Nodes[_currentNode].Host}:{Nodes[_currentNode].Host}] lost. Attempting to reconnect...");
+                $"ERR_LAVALINK_CONN_LOST: Connection to Lavalink node [{Nodes[CurrentNode].Host}:{Nodes[CurrentNode].Port}] lost. Attempting to reconnect...");
             await Connect();
         }
     }
