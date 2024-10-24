@@ -13,8 +13,6 @@ services:
       - ./config.yml:/app/config.yml
     networks:
       - lavalink
-    depends_on:
-      - lavalink
   
   lavalink:
     container_name: lavalink
