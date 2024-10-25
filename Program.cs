@@ -68,7 +68,11 @@ namespace RadiSharp
                 Environment.ExitCode = 2;
                 return;
             }
-            Log.Logger.Information("config.yaml successfully loaded.");
+#if DEBUG
+            Log.Logger.Information("config.canary.yml successfully loaded.");
+#else
+            Log.Logger.Information("config.yml successfully loaded.");
+#endif
 
             // Initialize the bot
             var discord = new DiscordClient(new DiscordConfiguration()

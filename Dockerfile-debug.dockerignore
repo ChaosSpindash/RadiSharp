@@ -1,0 +1,11 @@
+﻿*.dockerignore
+docker-compose.yml
+Dockerfile
+Dockerfile-debug
+config.yml
+config.example.yml
+LICENSE.txt
+README.md
+.gitignore
+Builds/
+Lavalink/
