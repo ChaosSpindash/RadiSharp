@@ -33,7 +33,7 @@ public class SearchAutocompleteProvider : IAutocompleteProvider
         foreach (var result in search.Results)
         {
             if (result is { Title: not null, Url: not null })
-                options.Add(new DiscordApplicationCommandAutocompleteChoice(result.Title, result.Url));
+                options.Add(new DiscordApplicationCommandAutocompleteChoice(result.Title.Length >= 100 ? result.Title.Substring(0,99) : result.Title, result.Url));
         }
         return await Task.FromResult(options.AsEnumerable());
     }
