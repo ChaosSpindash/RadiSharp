@@ -86,6 +86,7 @@ public class NodeManager
                 Password = node.Pass,
                 RestEndpoint = endpoint,
                 SocketEndpoint = endpoint,
+                SocketAutoReconnect = false,
 #if DEBUG
                 EnableTrace = true
 #endif

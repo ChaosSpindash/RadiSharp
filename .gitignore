@@ -364,7 +364,9 @@ FodyWeavers.xsd
 
 # config.yaml containing sensitive information
 config.yml
-config.canary.yml
+config-canary.yml
+config.json
+config-canary.json
 
 # Log folder
 logs/
@@ -383,3 +385,5 @@ Builds/
 
 # PowerShell scripts
 *.ps1
+
+RadiSharp.csproj.DotSettings

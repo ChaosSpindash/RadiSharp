@@ -1,0 +1,29 @@
+﻿{
+  "BotSettings": {
+    "Token": "your token here",
+    "Activity": {
+      "Type": 2,
+      "Name": "Dustbowle Radio",
+      "Status": 1
+    },
+    "GuildId": 0,
+    "GlobalCommands": false
+  },
+  "LavalinkSettings": {
+    "Timeout": 30000,
+    "Nodes": [
+      {
+        "Host": "lavalink.radi.docker",
+        "Port": 2333,
+        "Pass": "Welc_meToDustbowleRadio",
+        "Secure": false
+      },
+      {
+        "Host": "localhost",
+        "Port": 2333,
+        "Pass": "youshallnotpass",
+        "Secure": false
+      }
+    ]
+  }
+}

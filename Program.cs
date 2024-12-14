@@ -48,36 +48,61 @@ namespace RadiSharp
             .WithNamingConvention(CamelCaseNamingConvention.Instance)
             .Build();
 
-            YamlConfig yamlConfig;
+            BotConfig? botConfig = null;
+
+            #region JSON Parser
             try
             {
 #if DEBUG
-                yamlConfig = yamlDeserializer.Deserialize<YamlConfig>(await File.ReadAllTextAsync("config.canary.yml"));
+                botConfig = JsonSerializer.Deserialize<BotConfig>(await File.ReadAllTextAsync("config-canary.json"));
+                Log.Logger.Information("Successfully loaded config-canary.json.");
 #else
-                yamlConfig = yamlDeserializer.Deserialize<YamlConfig>(await File.ReadAllTextAsync("config.yml"));
+                botConfig = JsonSerializer.Deserialize<BotConfig>(await File.ReadAllTextAsync("config.json"));
+                Log.Logger.Information("Successfully loaded config.json.");
 #endif
             }
             catch (Exception ex)
             {
+                Log.Logger.Fatal($"Failed to load JSON config.\n{ex}");
+            }
+            #endregion
+            
+            #region YAML Parser (deprecated)
+
+            if (botConfig is null)
+            {
+                try
+                {
 #if DEBUG
-                Log.Logger.Fatal($"Could not load config.canary.yml - Abort.\n{ex}");
+                    botConfig = yamlDeserializer.Deserialize<BotConfig>(
+                        await File.ReadAllTextAsync("config-canary.yml"));
+                    Log.Logger.Information("Successfully loaded config-canary.yml.");
 #else
-                Log.Logger.Fatal($"Could not load config.yml - Abort.\n{ex}");
+                botConfig = yamlDeserializer.Deserialize<BotConfig>(await File.ReadAllTextAsync("config.yml"));
+                Log.Logger.Information("Successfully loaded config.yml.");
 #endif
+                    Log.Logger.Warning("Support for YAML is deprecated and will be removed in a future update.");
+                }
+                catch (Exception ex)
+                {
+                    Log.Logger.Fatal($"Failed to load YAML config.\n{ex}");
+                }
+            }
+
+            #endregion
+            
+            if (botConfig is null)
+            {
+                Log.Logger.Fatal("Failed to load the bot configuration. Exiting...");
                 await Task.Delay(5000);
                 Environment.ExitCode = 2;
                 return;
             }
-#if DEBUG
-            Log.Logger.Information("config.canary.yml successfully loaded.");
-#else
-            Log.Logger.Information("config.yml successfully loaded.");
-#endif
 
             // Initialize the bot
             var discord = new DiscordClient(new DiscordConfiguration()
             {
-                Token = yamlConfig.BotSettings.Token,
+                Token = botConfig.BotSettings.Token,
                 TokenType = TokenType.Bot,
                 Intents = DiscordIntents.AllUnprivileged | DiscordIntents.MessageContent,
                 LoggerFactory = loggerFactory
@@ -89,21 +114,21 @@ namespace RadiSharp
             });
 
             // Initialize the Lavalink config
-            var nodeManager = new NodeManager(discord, yamlConfig.LavalinkSettings);
+            var nodeManager = new NodeManager(discord, botConfig.LavalinkSettings);
 
             // Register the slash commands
             // NOTE: Global commands only update every hour, so it's recommended to use guild commands during development
             var appCommands = discord.UseApplicationCommands();
             
-            if (yamlConfig.BotSettings.GlobalCommands)
+            if (botConfig.BotSettings.GlobalCommands)
             {
                 appCommands.RegisterGlobalCommands<RadiSlashCommands>();
                 appCommands.RegisterGlobalCommands<PlayerCommands>();
             }
             else
             {
-                appCommands.RegisterGuildCommands<RadiSlashCommands>(yamlConfig.BotSettings.GuildId);
-                appCommands.RegisterGuildCommands<PlayerCommands>(yamlConfig.BotSettings.GuildId);
+                appCommands.RegisterGuildCommands<RadiSlashCommands>(botConfig.BotSettings.GuildId);
+                appCommands.RegisterGuildCommands<PlayerCommands>(botConfig.BotSettings.GuildId);
             }
             
             // Register the event handlers
@@ -111,7 +136,7 @@ namespace RadiSharp
 
             // Connect to Discord and Lavalink node
             // For Docker deployments, wait 5 seconds before connecting to Lavalink to ensure the container is ready
-            await discord.ConnectAsync(new DiscordActivity(yamlConfig.BotSettings.Activity.Name, yamlConfig.BotSettings.Activity.Type), yamlConfig.BotSettings.Activity.Status);
+            await discord.ConnectAsync(new DiscordActivity(botConfig.BotSettings.Activity.Name, botConfig.BotSettings.Activity.Type), botConfig.BotSettings.Activity.Status);
             await Task.Delay(5000);
             await nodeManager.Connect();
             await Task.Delay(-1); // Prevent the bot from exiting

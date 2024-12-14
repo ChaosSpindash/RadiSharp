@@ -3,9 +3,9 @@
 namespace RadiSharp.Typedefs
 {
     /// <summary>
-    /// Contains the imported YAML configuration.
+    /// Contains the imported bot configuration.
     /// </summary>
-    public class YamlConfig
+    public class BotConfig
     {
         /// <summary>
         /// The settings for the bot.
